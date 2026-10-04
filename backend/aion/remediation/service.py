@@ -97,6 +97,8 @@ def create_patch(session: Session, incident: Incident, service: Service, rca: RC
                              branch=branch, base_sha=base, worktree_path=str(wt), status="generating")
     session.add(proposal)
     session.flush()
+    # Release the SQLite write lock before the (possibly minutes-long) model call below.
+    session.commit()
 
     if wt.exists():
         repo.remove_worktree(wt)

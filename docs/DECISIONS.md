@@ -39,6 +39,8 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-31](#d-31-local-accounts-with-roles-hashed-session-tokens-and-a-service-token) | Local accounts, roles, hashed session tokens, service token | Security | Accepted |
 | [D-32](#d-32-redact-secrets-and-personal-data-before-prompting) | Redact secrets and personal data before prompting | Security / AI | Accepted |
 | [D-33](#d-33-fail-closed-docker-sandbox-for-validating-ai-written-code) | Fail-closed Docker sandbox for AI-written code | Security / Validation | Accepted |
+| [D-34](#d-34-choose-the-ai-provider-in-the-dashboard-with-encrypted-api-keys) | AI provider chosen in the dashboard, encrypted API keys | AI / Security | Accepted |
+| [D-35](#d-35-mcp-connector-external-ai-agents-answer-aions-model-calls-as-tasks) | MCP connector: external AI agents answer model calls as tasks | AI / Integration | Accepted |
 
 ---
 
@@ -874,3 +876,61 @@ Containers give meaningful isolation (filesystem, network, privileges, resources
 
 ## Future Reconsideration
 gVisor/Firecracker for kernel-level isolation; per-service images built from each service's own Dockerfile; validation on a separate CI runner.
+
+---
+
+# Decision: D-34 Choose the AI provider in the dashboard, with encrypted API keys
+
+Date: 2026-10-05
+Status: Accepted (extends D-12)
+Area: AI / Security
+
+## Context
+Changing the model meant editing `backend/.env` and restarting. Users also want to plug in an API key for a hosted model (Claude, OpenAI, Groq, OpenRouter, Gemini…) or switch to a local model, without touching files.
+
+## Options Considered
+- A. Keep `.env` only.
+- B. Store provider settings and API keys in the database in plain text.
+- C. Store them in the database with the API key **encrypted** (Fernet), master key in `.env`; admin-only API; key never returned.
+
+## Decision
+C (`api/ai_config.py`, `secrets_store.py`, `ai/providers/factory.py`, `AiProviderCard.jsx`). Presets: none, Anthropic, OpenAI, Groq, OpenRouter, Gemini (OpenAI-compatible endpoint), Ollama, LM Studio, custom OpenAI-compatible, MCP connector. Resolution order: test override → dashboard (table `ai_provider_config`) → `.env`. The key is encrypted with `AION_SECRET_KEY` (Fernet = AES-CBC + HMAC), only its last 4 characters are ever shown or audited, it is never reused when switching provider, and saving without a master key fails (409) instead of storing plain text. "Test connection" sends a tiny structured request. The provider cache is invalidated on change, so new incidents use the new provider without a restart.
+
+## Trade-offs
+− Anyone with both `aion.db` and `.env` can decrypt the key (same as for any app-level encryption); a cloud KMS / OS keychain would be stronger.
+− Admins can point AION at any URL (custom endpoint) — acceptable for an admin-only setting.
+
+## Future Reconsideration
+OS keychain / Vault / KMS for the master key; per-service provider choice.
+
+---
+
+# Decision: D-35 MCP connector: external AI agents answer AION's model calls as tasks
+
+Date: 2026-10-05
+Status: Accepted
+Area: AI / Integration
+
+## Context
+Students often have access to a capable AI *app* (Claude Code, Claude Desktop, other MCP clients) but no API key. The Model Context Protocol (MCP) is the standard way for such apps to use external tools.
+
+## Options Considered
+- A. MCP *sampling* (the server asks the client's model to complete a prompt) — support varies widely across clients.
+- B. Give the agent tools to drive AION freely (re-run, approve…) — unsafe.
+- C. A **task bridge**: AION exposes an MCP server; when the provider is "MCP connector", every model call the pipeline makes (RCA, patch) becomes an `AITask` row with the exact system prompt, evidence and JSON schema; the agent lists, reads and answers tasks through MCP tools; the pipeline waits, then validates and grounds the answer as if it came from an API.
+
+## Decision
+C. `ai/providers/mcp_bridge.py` (`MCPBridgeProvider` — an `LLMProvider` that writes a task and polls for its answer, timeout `AION_MCP_TASK_TIMEOUT`, then the normal fallback), `api/agent.py` (REST endpoints authenticated with a separate **agent token**), `mcp_server.py` (stdio MCP server, official `mcp` SDK v2) with five tools: `aion_list_incidents`, `aion_get_incident`, `aion_list_pending_tasks`, `aion_get_task`, `aion_submit_task_result`. Answers are validated against the Pydantic schema **at submission** (422 with details, the task stays open so the agent can correct itself). **There is no tool to approve, reject, deploy, ingest or change settings**; the agent token is rejected by those endpoints. Audit actors: `ai:mcp-agent` (claim), `ai:<agent name>` (answer).
+
+## Reason
+Works with any MCP client that supports tools (the most widely supported MCP feature), reuses the entire existing safety chain unchanged (schema, grounding, policy, sandbox, validation, human approval), and keeps the agent strictly in the "analyst" role.
+
+## Trade-offs
+− Asynchronous: the pipeline waits until someone asks their AI app to process tasks (with a timeout and the usual fallback).
+− While waiting, the single worker is busy (other incidents queue).
+
+## Consequences
+Required a fix found by the MCP end-to-end test: the pipeline used to call the model **inside an open SQLite write transaction**. With a task bridge (which must write) that deadlocked; with any slow model it also blocked the log collector. The pipeline now commits before every model call.
+
+## Future Reconsideration
+Add MCP sampling when clients support it widely; streamable-HTTP transport for remote agents; MCP resources for logs/diffs.

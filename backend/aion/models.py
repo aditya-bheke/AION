@@ -226,6 +226,47 @@ class UserSession(Base):
     revoked: Mapped[bool] = mapped_column(default=False)
 
 
+class AIProviderConfig(Base):
+    """The AI provider chosen in the dashboard (single row). Overrides backend/.env when present."""
+
+    __tablename__ = "ai_provider_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    preset: Mapped[str] = mapped_column(String(40))          # e.g. "anthropic", "openai", "ollama", "mcp"
+    kind: Mapped[str] = mapped_column(String(30))            # "none" | "anthropic" | "openai_compat" | "mcp"
+    model: Mapped[str] = mapped_column(String(200), default="")
+    base_url: Mapped[str] = mapped_column(String(500), default="")
+    api_key_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)   # Fernet token
+    api_key_hint: Mapped[str] = mapped_column(String(20), default="")
+    effort: Mapped[str] = mapped_column(String(20), default="high")
+    updated_by: Mapped[str] = mapped_column(String(100), default="")
+    updated_at: Mapped[datetime] = mapped_column(default=utcnow, onupdate=utcnow)
+
+
+class AITask(Base):
+    """A model call handed to an external AI agent through the MCP connector.
+
+    The pipeline writes the exact system prompt, user prompt and JSON schema it would
+    have sent to an API; a connected agent claims the task and submits JSON; the
+    pipeline then validates and grounds that answer exactly as it would an API reply.
+    """
+
+    __tablename__ = "ai_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(ForeignKey("incidents.id"), nullable=True, index=True)
+    purpose: Mapped[str] = mapped_column(String(60))          # schema name: RCAOutput / PatchOutput / ...
+    system_prompt: Mapped[str] = mapped_column(Text)
+    prompt: Mapped[str] = mapped_column(Text)
+    json_schema: Mapped[dict] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)  # pending|claimed|answered|expired
+    agent: Mapped[str] = mapped_column(String(100), default="")
+    response: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    claimed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    answered_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+
+
 class AuditEvent(Base):
     """Append-only audit trail. No API exists to update or delete rows."""
 

@@ -48,10 +48,17 @@ export default function ApprovalPanel({ detail, onChange }) {
   );
 
   if (["detected", "analyzing", "patching", "validating"].includes(s)) {
+    const waiting = (detail.ai_tasks || []).filter((t) => ["pending", "claimed"].includes(t.status));
     return (
       <div className="gate gate-busy">
         <div className="gate-title"><span className="spinner" /> AI pipeline running — production is locked</div>
         <p>AION is investigating and preparing a candidate fix. Nothing will be deployed without explicit human approval.</p>
+        {waiting.map((t) => (
+          <p key={t.task_id} className="small">
+            ⏳ Waiting for the AI agent connected over <b>MCP</b>: task #{t.task_id} ({t.purpose === "RCAOutput" ? "root-cause analysis" : t.purpose === "PatchOutput" ? "code fix" : t.purpose}) is <b>{t.status}</b>.
+            {t.status === "pending" && " Ask your AI app (e.g. Claude Code) to check AION for pending tasks."}
+          </p>
+        ))}
       </div>
     );
   }

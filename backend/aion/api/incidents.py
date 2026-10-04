@@ -12,7 +12,7 @@ from aion.api import serializers as ser
 from aion.db import get_session
 from aion.gitops.repo import GitRepo
 from aion.lifecycle import RERUNNABLE_STATES, InvalidTransition, Status, transition
-from aion.models import (Approval, AuditEvent, CommitSuspect, Deployment, Incident, LogEvent, LogSignature,
+from aion.models import (AITask, Approval, AuditEvent, CommitSuspect, Deployment, Incident, LogEvent, LogSignature,
                          PatchProposal, RCAReport, Service, ValidationRun)
 from aion.pipeline.worker import enqueue_deploy, enqueue_pipeline, worker
 from aion.remediation.service import worktree_path
@@ -70,6 +70,9 @@ def get_incident(incident_id: int, session: Session = Depends(get_session)):
         "approvals": [ser.approval(a) for a in approvals],
         "deployments": [ser.deployment(d) for d in deployments],
         "audit": [ser.audit_event(a) for a in audit_rows],
+        "ai_tasks": [{"task_id": t.id, "purpose": t.purpose, "status": t.status, "agent": t.agent,
+                      "created_at": ser._ts(t.created_at)}
+                     for t in session.scalars(select(AITask).where(AITask.incident_id == inc.id).order_by(AITask.id))],
         "job_running": any(k in worker.busy_keys() for k in (f"incident-{inc.id}", f"deploy-{inc.id}")),
     }
 

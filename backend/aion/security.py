@@ -148,7 +148,9 @@ class Principal:
 
     @property
     def actor(self) -> str:   # audit-trail actor string
-        return f"human:{self.name}" if self.kind == "user" else "system:service-client"
+        if self.kind == "user":
+            return f"human:{self.name}"
+        return "ai:mcp-agent" if self.kind == "agent" else "system:service-client"
 
 
 def _bearer(authorization: Optional[str]) -> Optional[str]:
@@ -178,6 +180,18 @@ def require_role(min_role: str) -> Callable[..., Principal]:
             raise HTTPException(403, f"This action requires the '{min_role}' role (you are '{principal.role}')")
         return principal
     return dependency
+
+
+def require_agent(authorization: Optional[str] = Header(default=None)) -> Principal:
+    """AI agents connected through the MCP connector: AION_AGENT_TOKEN only.
+
+    Deliberately separate from users and from the service token: an agent can read
+    incidents and answer AI tasks, and nothing else - no approve, no deploy, no ingest.
+    """
+    token = _bearer(authorization)
+    if token and settings.agent_token and hmac.compare_digest(token, settings.agent_token):
+        return Principal("agent", "mcp-agent", "agent")
+    raise HTTPException(401, "Agent token required", headers={"WWW-Authenticate": "Bearer"})
 
 
 def require_service_or_admin(authorization: Optional[str] = Header(default=None),

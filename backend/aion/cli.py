@@ -5,6 +5,8 @@
     python -m aion.cli users disable <username>
     python -m aion.cli users reset-password <username>
     python -m aion.cli service-token [--write]
+    python -m aion.cli agent-token [--write]      # MCP connector
+    python -m aion.cli secret-key [--write]       # encrypts API keys saved in the dashboard
 
 Passwords are read interactively (not echoed, never on the command line where
 they would land in shell history). For scripts, use --password-stdin.
@@ -79,20 +81,44 @@ def users_reset_password(args) -> None:
     print(f"Password updated for {args.username!r}")
 
 
-def service_token(args) -> None:
-    token = secrets.token_urlsafe(32)
-    if not args.write:
-        print(token)
-        return
+def _write_env(name: str, value: str, comment: str) -> None:
     env = BACKEND_DIR / ".env"
     text = env.read_text(encoding="utf-8") if env.exists() else ""
-    line = f"AION_SERVICE_TOKEN={token}"
-    if re.search(r"^AION_SERVICE_TOKEN=.*$", text, flags=re.M):
-        text = re.sub(r"^AION_SERVICE_TOKEN=.*$", line, text, flags=re.M)
+    line = f"{name}={value}"
+    if re.search(rf"^{name}=.*$", text, flags=re.M):
+        text = re.sub(rf"^{name}=.*$", line, text, flags=re.M)
     else:
-        text = text.rstrip("\n") + ("\n\n" if text else "") + "# Machine clients (log shippers, CI, demo)\n" + line + "\n"
+        text = text.rstrip("\n") + ("\n\n" if text else "") + f"# {comment}\n" + line + "\n"
     env.write_text(text, encoding="utf-8")
-    print(f"Wrote a new AION_SERVICE_TOKEN to {env}. Restart AION (and the demo) to use it.")
+    print(f"Wrote {name} to {env}. Restart AION to use it.")
+
+
+def service_token(args) -> None:
+    token = secrets.token_urlsafe(32)
+    if args.write:
+        _write_env("AION_SERVICE_TOKEN", token, "Machine clients (log shippers, CI, demo)")
+    else:
+        print(token)
+
+
+def agent_token(args) -> None:
+    token = secrets.token_urlsafe(32)
+    if args.write:
+        _write_env("AION_AGENT_TOKEN", token, "AI agents connected through the MCP connector (aion.mcp_server)")
+    else:
+        print(token)
+
+
+def secret_key(args) -> None:
+    from aion.secrets_store import new_key
+
+    if settings.secret_key and not args.force:
+        sys.exit("AION_SECRET_KEY already exists. Replacing it makes stored API keys unreadable; use --force.")
+    key = new_key()
+    if args.write:
+        _write_env("AION_SECRET_KEY", key, "Master key that encrypts API keys saved in the dashboard - keep secret")
+    else:
+        print(key)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -117,6 +143,13 @@ def main(argv: list[str] | None = None) -> None:
     st = sub.add_parser("service-token", help="generate a service token for machine clients")
     st.add_argument("--write", action="store_true", help="store it in backend/.env")
     st.set_defaults(func=service_token)
+    at = sub.add_parser("agent-token", help="generate the token used by the MCP connector")
+    at.add_argument("--write", action="store_true", help="store it in backend/.env")
+    at.set_defaults(func=agent_token)
+    sk = sub.add_parser("secret-key", help="generate the master key that encrypts stored API keys")
+    sk.add_argument("--write", action="store_true", help="store it in backend/.env")
+    sk.add_argument("--force", action="store_true", help="replace an existing key (stored API keys become unreadable)")
+    sk.set_defaults(func=secret_key)
     args = ap.parse_args(argv)
     init_engine(settings.database_url)
     args.func(args)

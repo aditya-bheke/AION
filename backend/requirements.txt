@@ -11,3 +11,7 @@ httpx>=0.27
 anthropic>=0.70
 # --- Testing ---
 pytest>=8.0
+# --- MCP connector (AION as an MCP server for external AI agents) ---
+mcp>=2.3,<3
+# --- Encryption of API keys stored in the database (Fernet) ---
+cryptography>=42

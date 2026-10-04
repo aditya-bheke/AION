@@ -24,6 +24,12 @@ if (-not (Test-Path "backend\.env")) {
 if (-not (Select-String -Path backend\.env -Pattern "^AION_SERVICE_TOKEN=" -Quiet)) {
     & backend\.venv\Scripts\python -m aion.cli service-token --write
 }
+if (-not (Select-String -Path backend\.env -Pattern "^AION_AGENT_TOKEN=" -Quiet)) {
+    & backend\.venv\Scripts\python -m aion.cli agent-token --write     # MCP connector
+}
+if (-not (Select-String -Path backend\.env -Pattern "^AION_SECRET_KEY=" -Quiet)) {
+    & backend\.venv\Scripts\python -m aion.cli secret-key --write      # encrypts API keys saved in the dashboard
+}
 
 Write-Host ""
 Write-Host "Create your first account (you will be asked for a password):"

@@ -77,6 +77,13 @@ class Settings:
     # Shared secret for machine clients (log shippers, CI, the demo driver). Required for
     # POST /api/services, /api/deployments and /api/ingest/*. Empty = machine endpoints disabled.
     service_token: str = field(default_factory=lambda: os.getenv("AION_SERVICE_TOKEN", ""))
+    # Token for AI agents connected through the MCP connector (aion.mcp_server). It can only
+    # read incidents and answer AI tasks - never approve or deploy.
+    agent_token: str = field(default_factory=lambda: os.getenv("AION_AGENT_TOKEN", ""))
+    # How long the pipeline waits for an MCP-connected agent to answer one AI task.
+    mcp_task_timeout_seconds: int = field(default_factory=lambda: _int("AION_MCP_TASK_TIMEOUT", 900))
+    # Master key (Fernet) used to encrypt API keys saved from the dashboard.
+    secret_key: str = field(default_factory=lambda: os.getenv("AION_SECRET_KEY", ""))
     session_hours: int = field(default_factory=lambda: _int("AION_SESSION_HOURS", 12))
     password_iterations: int = field(default_factory=lambda: _int("AION_PASSWORD_ITERATIONS", 600_000))
     # Distinct approvers needed before a patch is approved (2 = four-eyes principle).

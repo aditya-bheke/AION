@@ -21,6 +21,9 @@ from demo_repo import build_repo  # noqa: E402
 
 
 SERVICE_TOKEN = "test-service-token-0123456789"
+AGENT_TOKEN = "test-agent-token-0123456789"
+TEST_SECRET_KEY = "kq4Qe0B6v5Zc3xT1mJ8yR2wN7pL9aS0dF4gH6jK8lM0="  # a valid Fernet key, tests only
+AGENT_HEADERS = {"Authorization": f"Bearer {AGENT_TOKEN}"}
 
 
 @pytest.fixture()
@@ -30,6 +33,8 @@ def aion_env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "database_url", f"sqlite:///{(tmp_path / 'aion.db').as_posix()}")
     monkeypatch.setattr(settings, "auto_pipeline", False)
     monkeypatch.setattr(settings, "service_token", SERVICE_TOKEN)
+    monkeypatch.setattr(settings, "agent_token", AGENT_TOKEN)
+    monkeypatch.setattr(settings, "secret_key", TEST_SECRET_KEY)
     monkeypatch.setattr(settings, "password_iterations", 1000)  # fast hashing in tests only
     monkeypatch.setattr(settings, "required_approvals", 1)
     settings.worktrees_dir.mkdir(parents=True, exist_ok=True)

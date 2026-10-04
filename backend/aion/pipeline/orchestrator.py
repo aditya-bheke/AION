@@ -21,6 +21,7 @@ from aion import audit
 from aion.ai.context import build_evidence_pack, failing_request_samples
 from aion.ai.providers.base import LLMError
 from aion.ai.providers.factory import get_provider
+from aion.ai.providers.mcp_bridge import current_incident
 from aion.ai.redact import redact_pack
 from aion.ai.rca import RCAOutput, ground, run_heuristic_rca, run_llm_rca
 from aion.config import settings
@@ -65,6 +66,7 @@ def _feedback_from(steps: list[dict[str, Any]]) -> str:
 
 def run_pipeline(incident_id: int) -> None:
     try:
+        current_incident.set(incident_id)  # lets MCP tasks show which incident they belong to
         _run(incident_id)
     except Exception as exc:  # record, never crash the worker thread
         log.exception("pipeline crashed for incident %s", incident_id)
@@ -122,6 +124,10 @@ def _run(incident_id: int) -> None:
             pack, redactions = redact_pack(pack)
             pack["redactions"] = redactions
         repo_files = set(repo.ls_files(corr.analysed_revision))
+        # Commit before calling the model: a model call can take minutes (local LLM, an MCP
+        # agent), and SQLite allows one writer - an open write transaction here would block
+        # the log collector and the MCP task queue for the whole call.
+        session.commit()
         if provider:
             try:
                 result = run_llm_rca(provider, pack)

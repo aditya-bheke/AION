@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { fmtTime, usePolling } from "../hooks.js";
 import { Card, Sha } from "../components/common.jsx";
+import AiProviderCard from "../components/AiProviderCard.jsx";
 
 export default function SystemPage({ system }) {
   const { data: deployments } = usePolling(api.deployments, 5000);
@@ -9,21 +10,7 @@ export default function SystemPage({ system }) {
     <>
       <div className="page-head"><h1>System</h1></div>
       <div className="grid-2">
-        <Card title="AI provider">
-          <div className="kv">
-            <span>Mode</span><b>{system.llm.mode}</b>
-            <span>Provider</span><span>{system.llm.provider || "—"}</span>
-            <span>Configured as</span><code>{system.llm.kind}</code>
-          </div>
-          {system.llm.error && <p className="error">{system.llm.error}</p>}
-          {!system.llm.provider && (
-            <p className="muted small">
-              Without an LLM, AION uses the deterministic analyzer (correlation-ranked root cause) and proposes a
-              revert of the suspected commit. Configure <code>ANTHROPIC_API_KEY</code> or an OpenAI-compatible endpoint
-              in <code>backend/.env</code> to enable AI analysis and AI-written fixes.
-            </p>
-          )}
-        </Card>
+        <AiProviderCard />
         <Card title="Incident detection">
           <div className="kv">
             <span>Window</span><span>{system.detection.window_seconds}s</span>

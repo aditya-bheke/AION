@@ -131,3 +131,31 @@ cd backend
 | `AION_REQUIRED_APPROVALS=2` | two-person rule: two different approvers before deploy |
 | `AION_SANDBOX=docker` | AI-written code is validated in isolated containers (build the image first: `scripts\build-sandbox.ps1`, Docker Desktop running) |
 | `AION_REDACT_PROMPTS=true` (default) | secrets and personal data masked before anything reaches an LLM — see the *What the AI saw* tab |
+
+## Choosing the AI (Phase 4): API key, local LLM or MCP connector
+
+As an **admin**, open **System → AI provider** in the dashboard, pick a provider and click **Save**, then **Test connection**. New incidents use it immediately (no restart). **Use .env settings** returns to `backend\.env`.
+
+| Option | What you enter | Notes |
+|---|---|---|
+| Anthropic Claude | API key (model defaults to `claude-opus-5-5`) | best quality |
+| OpenAI / Groq / OpenRouter / Gemini | API key + model id | via each provider's OpenAI-compatible endpoint |
+| Local: Ollama / LM Studio | model id (Ollama default `qwen2.5-coder:7b`) | free; start Ollama with `scripts\start-ollama.ps1` |
+| Custom endpoint | URL + model (+ key) | any OpenAI-compatible server |
+| **MCP connector** | nothing | an AI app you already use (e.g. Claude Code) answers AION's tasks — see below |
+
+API keys are **encrypted** in the database with `AION_SECRET_KEY` (created by `setup.ps1` or `python -m aion.cli secret-key --write`) and are never shown again — only their last 4 characters.
+
+### Using the MCP connector with Claude Code
+
+1. Make sure `backend\.env` has `AION_AGENT_TOKEN` (`python -m aion.cli agent-token --write`, then restart AION).
+2. Register AION's MCP server with Claude Code (once):
+   ```powershell
+   claude mcp add aion -- D:\projects\AION\backend\.venv\Scripts\python.exe -m aion.mcp_server
+   ```
+   (Claude Desktop: add the same command under `mcpServers` in `claude_desktop_config.json`.)
+3. In the dashboard choose **AI provider → MCP connector** and save.
+4. When an incident appears, its page shows *"Waiting for the AI agent connected over MCP"*. In Claude Code ask: **"Check AION for pending tasks and complete them."** Claude reads the evidence (`aion_get_task`) and submits the root cause and then the fix (`aion_submit_task_result`).
+5. AION validates, grounds and tests the answers as usual — then **you** approve and deploy in the dashboard. The MCP server has no approve/deploy tool.
+
+If no agent answers within `AION_MCP_TASK_TIMEOUT` (default 900 s), AION falls back to its deterministic analyzer.

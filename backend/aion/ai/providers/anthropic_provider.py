@@ -9,12 +9,14 @@ from aion.ai.providers.base import LLMError, LLMResponse
 
 
 class AnthropicProvider:
-    def __init__(self, model: str, effort: str = "high", timeout: float = 300.0):
+    def __init__(self, model: str, effort: str = "high", timeout: float = 300.0, api_key: str | None = None):
         self.model = model
         self.effort = effort
         self.name = f"anthropic:{model}"
-        # Credentials are resolved by the SDK from ANTHROPIC_API_KEY (never hard-coded).
-        self.client = anthropic.Anthropic(timeout=timeout, max_retries=2)
+        # The key comes from the dashboard (decrypted at runtime) or, if None, the SDK resolves
+        # credentials itself (ANTHROPIC_API_KEY). Never hard-coded.
+        self.client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=2) if api_key \
+            else anthropic.Anthropic(timeout=timeout, max_retries=2)
 
     def complete_json(self, system: str, user: str, schema: dict[str, Any], schema_name: str,
                       max_tokens: int) -> LLMResponse:

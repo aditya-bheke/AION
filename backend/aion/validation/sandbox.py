@@ -196,7 +196,9 @@ class DockerSandbox:
     def _shell(cmd: list[str], port: Optional[int] = None) -> str:
         argv = [a.replace("{python}", "python").replace("{port}", str(port or "")) for a in cmd]
         # Copy the read-only source into the writable tmpfs, then run there.
-        return f"cp -a /src/. /work/ && cd /work && exec {shlex.join(argv)}"
+        # Plain recursive copy: as the non-root sandbox user we may not change /work's own
+        # metadata, which `cp -a` tries to preserve.
+        return f"cp -r /src/. /work/ && cd /work && exec {shlex.join(argv)}"
 
     def run(self, cmd: list[str], src: Path, timeout: int) -> tuple[int, str]:
         name = f"aion-run-{uuid.uuid4().hex[:10]}"

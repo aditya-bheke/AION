@@ -25,3 +25,6 @@ Live run (scratch database): anonymous request 401, viewer approve 403, approver
 
 ## Status
 Phase 3 implemented. Pending: build `aion-sandbox:py310` and run the real-container test after the Docker disk move.
+
+## Update 2026-10-05: Docker sandbox verified
+Built `aion-sandbox:py310` (246 MB; Docker's disk stays on C: — acceptable). Real-container test passes (no network, read-only source). One fix found only in a real container: `cp -a` failed as the non-root user (`preserving times for '/work/.'`) → `cp -r`. Evaluation with `AION_SANDBOX=docker`: 4/4, syntax/tests/staging/replay all inside containers, ~7 s per incident (`evaluation/results/20261005-0026-heuristic.md`).
