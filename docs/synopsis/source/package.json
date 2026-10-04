@@ -1,0 +1,16 @@
+{
+  "name": "aion-synopsis",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Generates the AION project synopsis (Word) and its two diagrams",
+  "scripts": {
+    "diagrams": "node diagrams/process.js && node diagrams/arch.js",
+    "build": "node build_synopsis.js",
+    "all": "npm run diagrams && npm run build"
+  },
+  "dependencies": {
+    "docx": "^9.7.1",
+    "lucide-static": "^1.52.0",
+    "playwright": "^1.63.0"
+  }
+}

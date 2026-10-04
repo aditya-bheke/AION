@@ -21,3 +21,6 @@ Thumbs.db
 # Personal study material (learning notes, viva/interview prep) - kept local, not published
 docs/notes/
 docs/interview/
+
+# Synopsis generator dependencies
+docs/synopsis/source/node_modules/
