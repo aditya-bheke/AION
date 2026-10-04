@@ -1,0 +1,20 @@
+{
+  "name": "healthy-release",
+  "title": "Harmless release with background noise (no incident expected)",
+  "description": "A documentation-only release. Traffic includes the chronic payment-gateway timeouts and cache-miss warnings. AION must NOT open an incident (false-positive check).",
+  "base_until": "05-docs",
+  "commits": [
+    {
+      "dir": "01-docs",
+      "author": "Karan Mehta <karan@shop.example>",
+      "hours_ago": 4,
+      "message": "Docs: add team ownership to README",
+      "deploy": "v1.4.0",
+      "deploy_hours_ago": 3
+    }
+  ],
+  "trigger": [],
+  "expected": {
+    "incident": false
+  }
+}

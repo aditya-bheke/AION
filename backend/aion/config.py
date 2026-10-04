@@ -50,6 +50,7 @@ class Settings:
     openai_base_url: str = field(default_factory=lambda: os.getenv("AION_OPENAI_BASE_URL", ""))
     openai_api_key: str = field(default_factory=lambda: os.getenv("AION_OPENAI_API_KEY", ""))
     openai_model: str = field(default_factory=lambda: os.getenv("AION_OPENAI_MODEL", ""))
+    openai_max_tokens: int = field(default_factory=lambda: _int("AION_OPENAI_MAX_TOKENS", 4096))
     llm_timeout_seconds: int = field(default_factory=lambda: _int("AION_LLM_TIMEOUT", 300))
 
     # --- incident detection ---

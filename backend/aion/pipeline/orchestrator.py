@@ -101,7 +101,7 @@ def _run(incident_id: int) -> None:
             select(Deployment).where(Deployment.service_id == service.id, Deployment.environment == "production",
                                      Deployment.status.in_(["succeeded", "verifying"])))]
         corr = correlate(repo, service.production_branch, sample.frames if sample else [],
-                         [incident.title, sample.template if sample else ""], incident.first_seen, deployments)
+                         [incident.title], incident.first_seen, deployments)
         session.execute(delete(CommitSuspect).where(CommitSuspect.incident_id == incident.id))
         for s in corr.suspects[:10]:
             session.add(CommitSuspect(incident_id=incident.id, commit_sha=s.commit.sha, author=s.commit.author,

@@ -1,10 +1,12 @@
-"""Build the demo `orders-service` git repository from the history overlays.
+"""Build the demo `orders-service` git repository for a scenario.
 
-Each folder in orders-service-history/ (01-initial, 02-pricing, ...) contains
-the files that changed in that commit. We copy them over the working tree in
-order and commit each one with the author and (backdated) timestamp from
-manifest.json, producing a realistic multi-author history in which commit 06
-introduces a latent bug that the existing tests do not catch.
+The shared base history lives in orders-service-history/ (01-initial ... 05-docs,
+listed in its manifest.json). Each scenario in scenarios/<name>/scenario.json
+says where the base stops (`base_until`) and which further commits to add;
+each commit is a folder of files that changed ("overlay"). We copy overlays
+over the working tree in order and commit them with the author and
+(backdated) timestamp from the manifests, producing a realistic multi-author
+history in which one commit introduces a latent bug.
 
 The history is synthetic demo data; everything AION does with it (blame,
 diffs, worktrees, merges) is real git.
@@ -15,11 +17,14 @@ import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-HISTORY_DIR = Path(__file__).resolve().parent / "orders-service-history"
+DEMO_DIR = Path(__file__).resolve().parent
+HISTORY_DIR = DEMO_DIR / "orders-service-history"
+SCENARIOS_DIR = DEMO_DIR / "scenarios"
+DEFAULT_SCENARIO = "expired-coupon"
 
 
 @dataclass
@@ -31,6 +36,40 @@ class BuiltCommit:
     deployed_at: datetime | None = None
 
 
+@dataclass
+class Scenario:
+    name: str
+    title: str
+    description: str
+    commits: list[dict]          # base commits + scenario commits, with absolute "path"
+    trigger: list[list]          # [method, path template, weight] requests that hit the bug
+    expected: dict = field(default_factory=dict)
+
+
+def list_scenarios() -> list[str]:
+    return sorted(p.parent.name for p in SCENARIOS_DIR.glob("*/scenario.json"))
+
+
+def load_scenario(name: str = DEFAULT_SCENARIO) -> Scenario:
+    path = SCENARIOS_DIR / name / "scenario.json"
+    if not path.exists():
+        raise ValueError(f"Unknown scenario {name!r}. Available: {', '.join(list_scenarios())}")
+    spec = json.loads(path.read_text(encoding="utf-8"))
+    base = json.loads((HISTORY_DIR / "manifest.json").read_text(encoding="utf-8"))["commits"]
+    commits = []
+    for entry in base:
+        # Base commits carry no deployment of their own except v1.3.0 at 05-docs.
+        commits.append({**entry, "path": HISTORY_DIR / entry["dir"]})
+        if entry["dir"] == spec["base_until"]:
+            break
+    else:
+        raise ValueError(f"base_until {spec['base_until']!r} not found in the base history")
+    for entry in spec["commits"]:
+        commits.append({**entry, "path": (path.parent / entry["dir"]).resolve()})
+    return Scenario(name=spec["name"], title=spec["title"], description=spec["description"],
+                    commits=commits, trigger=spec.get("trigger", []), expected=spec.get("expected", {}))
+
+
 def _git(args: list[str], cwd: Path, env: dict | None = None) -> str:
     proc = subprocess.run(["git", "-c", "core.autocrlf=false", *args], cwd=str(cwd), capture_output=True, text=True,
                           env={**os.environ, **(env or {})})
@@ -39,17 +78,17 @@ def _git(args: list[str], cwd: Path, env: dict | None = None) -> str:
     return proc.stdout
 
 
-def build_repo(target: Path, now: datetime | None = None, history_dir: Path = HISTORY_DIR) -> list[BuiltCommit]:
-    """Create a fresh repository at `target`. Any existing directory is replaced."""
+def build_repo(target: Path, now: datetime | None = None, scenario: str = DEFAULT_SCENARIO) -> list[BuiltCommit]:
+    """Create a fresh repository at `target` for `scenario`. Any existing directory is replaced."""
     now = now or datetime.now(timezone.utc)
+    spec = load_scenario(scenario)
     if target.exists():
         shutil.rmtree(target, onerror=_force_remove)
     target.mkdir(parents=True)
     _git(["init", "-q", "-b", "main"], target)
-    manifest = json.loads((history_dir / "manifest.json").read_text(encoding="utf-8"))
     built: list[BuiltCommit] = []
-    for entry in manifest["commits"]:
-        src = history_dir / entry["dir"]
+    for entry in spec.commits:
+        src: Path = entry["path"]
         for path in src.rglob("*"):
             if path.is_file():
                 dst = target / path.relative_to(src)

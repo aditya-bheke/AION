@@ -1,0 +1,39 @@
+{
+  "name": "expired-coupon",
+  "title": "Expired coupon crashes pricing (TypeError)",
+  "description": "A campaign change makes get_coupon() return None for unknown or expired codes; apply_discount() still indexes the result. The culprit commit changed the crashing line.",
+  "base_until": "05-docs",
+  "commits": [
+    {
+      "dir": "../../orders-service-history/06-campaigns",
+      "author": "Rahul Verma <rahul@shop.example>",
+      "hours_ago": 6,
+      "message": "Support seasonal campaigns: coupon expiry and maximum discount\n\nCoupons now carry a validity date and a discount cap. get_coupon() returns\nNone for unknown or expired codes so they are no longer silently accepted."
+    },
+    {
+      "dir": "../../orders-service-history/07-request-timing",
+      "author": "Ananya Iyer <ananya@shop.example>",
+      "hours_ago": 4,
+      "message": "Add request duration to access logs",
+      "deploy": "v1.4.0",
+      "deploy_hours_ago": 3
+    }
+  ],
+  "trigger": [
+    [
+      "GET",
+      "/orders/{order}/total?coupon=SUMMER23",
+      3
+    ],
+    [
+      "GET",
+      "/orders/{order}/total?coupon=FREESHIP",
+      1
+    ]
+  ],
+  "expected": {
+    "incident": true,
+    "exception_type": "TypeError",
+    "culprit": "Support seasonal campaigns: coupon expiry and maximum discount"
+  }
+}

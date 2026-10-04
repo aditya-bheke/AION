@@ -53,6 +53,7 @@ Rules:
 2. Cite only IDs that appear in the pack. Never invent files, functions, commits or log lines.
 3. `suspected_commit` must be one of the COMMIT items (or an empty string if none is plausible). Correlation scores are heuristics: confirm them by reading the diffs and code, and disagree when the code says otherwise.
 4. Log clusters marked pre_existing are probably background noise; do not attribute the incident to them without a reason.
+4b. The commit that last changed the failing line is not automatically the cause. If that code was already running before the last deployment without this error, look for what the last deployment changed in the code's inputs: data it reads, modules it imports, or its callers.
 5. `affected_files` lists the repository-relative files that must change to fix the problem.
 6. Calibrate `confidence`: high (>0.8) only when the diff, stack trace and timing all point to the same change. Explain the calibration in `confidence_rationale`.
 7. `remediation` describes a specific code-level fix, not generic advice."""

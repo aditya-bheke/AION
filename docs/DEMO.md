@@ -35,6 +35,28 @@ This builds `workspace/orders-service` (a real git repo, 7 commits), registers i
 
 To reset everything: stop both terminals and delete the `workspace/` folder.
 
+### Other bug scenarios
+
+```powershell
+backend\.venv\Scripts\python demo\run_demo.py --list                              # describe all scenarios
+backend\.venv\Scripts\python demo\run_demo.py --fresh --scenario supplier-feed    # pick one
+```
+
+| Scenario | Bug | What it shows |
+|---|---|---|
+| `expired-coupon` (default) | `TypeError` — expired coupon → `None` | culprit commit changed the crashing line; blame finds it directly |
+| `supplier-feed` | `KeyError: 'price'` — new product uses `unit_price` | culprit changed only *data*; blame points at innocent old code — needs the LLM to read the diffs |
+| `empty-cart-average` | `ZeroDivisionError` on an empty draft cart | a condition that was harmless for a day becomes fatal after a new feature |
+| `healthy-release` | none | a harmless release with background noise: AION must stay silent |
+
+## Evaluating AION on all scenarios
+
+```powershell
+backend\.venv\Scripts\python evaluation\run_eval.py                 # deterministic mode (no LLM)
+backend\.venv\Scripts\python evaluation\run_eval.py --mode llm      # the model configured in backend\.env
+```
+Each scenario runs in an isolated temporary workspace through the real pipeline; results (table + details) are written to `evaluation/results/`. Method and latest results: [EVALUATION.md](EVALUATION.md).
+
 ## What to show, step by step (≈ 8 minutes)
 
 1. **Before the incident** — *Incidents* is empty. *System* shows the AI mode, detection parameters and the deployment history (v1.3.0 two days ago, v1.4.0 three hours ago). Point out the terminal: requests are succeeding; some payment calls return 503 (a known flaky gateway) — that's background noise.
@@ -58,11 +80,20 @@ To reset everything: stop both terminals and delete the `workspace/` folder.
 |---|---|---|
 | No LLM (default) | nothing | Heuristic RCA; patch = `git revert` of suspect commit; labelled everywhere |
 | Claude | `ANTHROPIC_API_KEY=…` (model defaults to `claude-opus-5-5`) | LLM RCA citing evidence; LLM-written fix + regression test (`regression_reproduce` step runs) |
-| Local model (free) | `AION_OPENAI_BASE_URL=http://localhost:1234/v1`, `AION_OPENAI_MODEL=<model id>` | Same as Claude but via LM Studio/Ollama; weaker models produce weaker fixes — validation will catch broken ones |
+| Local model (free) | `AION_OPENAI_BASE_URL=http://127.0.0.1:11434/v1`, `AION_OPENAI_MODEL=qwen2.5-coder:7b` | Same as Claude but via Ollama (or LM Studio / any OpenAI-compatible server); weaker models produce weaker fixes — validation catches broken ones |
 
 Restart AION after editing `.env`. The top-right pill in the dashboard shows the active mode.
 
-For LM Studio: download a coder model that fits your GPU (e.g. *Qwen2.5-Coder-7B-Instruct*, Q4_K_M ≈ 4.7 GB for a 6 GB GPU), load it, start the local server (Developer tab → Start Server, port 1234), and use the model identifier shown there.
+### Local model with Ollama (free, everything on D:)
+
+```powershell
+# one-time: portable Ollama in D:\Ollama + model qwen2.5-coder:7b (~4.7 GB) in D:\Ollama\models
+powershell -ExecutionPolicy Bypass -File scripts\setup-ollama.ps1
+
+# every session, in its own terminal (keep it open):
+powershell -ExecutionPolicy Bypass -File scripts\start-ollama.ps1
+```
+`start-ollama.ps1` sets a **12,288-token context window**. This matters: AION's root-cause prompts are ~6–7k tokens and Ollama's default (4,096) would silently cut off their beginning. A 6 GB GPU holds most of the 7B model; the rest runs on the CPU, so expect roughly 1–3 minutes per incident.
 
 ## Running the tests
 
@@ -70,7 +101,7 @@ For LM Studio: download a coder model that fits your GPU (e.g. *Qwen2.5-Coder-7B
 cd backend
 .venv\Scripts\python -m pytest -q
 ```
-33 tests, ~30 s: unit tests for every component plus three end-to-end tests that build the demo repo, generate real logs from the real service, run the full pipeline (including starting a staging server), enforce the approval gate and deploy.
+38 tests, ~40 s: unit tests for every component, three end-to-end tests that build the demo repo, generate real logs from the real service, run the full pipeline (including starting a staging server), enforce the approval gate and deploy, and checks that every evaluation scenario builds with a latent bug and a known culprit.
 
 ## Troubleshooting
 

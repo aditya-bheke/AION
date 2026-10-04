@@ -10,10 +10,7 @@
     {"dir": "04-payments", "author": "Ananya Iyer <ananya@shop.example>", "hours_ago": 72,
      "message": "Add payment endpoint backed by the gateway client"},
     {"dir": "05-docs", "author": "Karan Mehta <karan@shop.example>", "hours_ago": 50,
-     "message": "Docs: document API endpoints in README", "deploy": "v1.3.0", "deploy_hours_ago": 48},
-    {"dir": "06-campaigns", "author": "Rahul Verma <rahul@shop.example>", "hours_ago": 6,
-     "message": "Support seasonal campaigns: coupon expiry and maximum discount\n\nCoupons now carry a validity date and a discount cap. get_coupon() returns\nNone for unknown or expired codes so they are no longer silently accepted."},
-    {"dir": "07-request-timing", "author": "Ananya Iyer <ananya@shop.example>", "hours_ago": 4,
-     "message": "Add request duration to access logs", "deploy": "v1.4.0", "deploy_hours_ago": 3}
-  ]
+     "message": "Docs: document API endpoints in README", "deploy": "v1.3.0", "deploy_hours_ago": 48}
+  ],
+  "note": "Shared base history. Folders 06-campaigns and 07-request-timing are used by scenarios (see ../scenarios)."
 }

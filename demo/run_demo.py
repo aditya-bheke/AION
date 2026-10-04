@@ -1,17 +1,19 @@
 """End-to-end AION demo driver.
 
-    1. builds the demo `orders-service` git repository (workspace/orders-service)
-    2. registers it with AION and records its deployment history (v1.3.0, v1.4.0)
+    1. builds the demo `orders-service` git repository for a scenario
+       (workspace/orders-service; scenarios live in demo/scenarios/)
+    2. registers it with AION and records its deployment history
     3. starts the service in "production" on port 8101 and redeploys it whenever
        the main branch moves (a minimal GitOps controller)
-    4. sends realistic traffic; after a warm-up period customers start using an
-       expired coupon (SUMMER23), which triggers the latent bug from commit 06
+    4. sends realistic traffic; after a warm-up period the scenario's trigger
+       requests start (e.g. an expired coupon), which hit the latent bug
 
 Then watch the incident in the dashboard: http://127.0.0.1:8000
 
 Run with the backend virtualenv's Python while AION is running:
 
-    backend\\.venv\\Scripts\\python demo\\run_demo.py
+    backend\\.venv\\Scripts\\python demo\\run_demo.py --fresh [--scenario supplier-feed]
+    backend\\.venv\\Scripts\\python demo\\run_demo.py --list
 """
 from __future__ import annotations
 
@@ -28,7 +30,7 @@ from pathlib import Path
 import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from demo_repo import build_repo  # noqa: E402
+from demo_repo import DEFAULT_SCENARIO, build_repo, list_scenarios, load_scenario  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKSPACE = ROOT / "workspace"
@@ -38,10 +40,11 @@ PROD_PORT = 8101
 PROD_URL = f"http://127.0.0.1:{PROD_PORT}"
 
 
-def setup(aion: str, fresh: bool) -> None:
+def setup(aion: str, fresh: bool, scenario: str) -> None:
     if fresh or not (REPO / ".git").exists():
+        print(f"[demo] scenario '{scenario}': {load_scenario(scenario).title}")
         print(f"[demo] building git repository at {REPO}")
-        commits = build_repo(REPO)
+        commits = build_repo(REPO, scenario=scenario)
         for c in commits:
             print(f"        {c.sha[:7]}  {c.message.splitlines()[0]}" + (f"   <- deployed as {c.deploy_version}" if c.deploy_version else ""))
         if LOG_FILE.exists():
@@ -138,10 +141,7 @@ NORMAL = [
     ("GET", "/orders/{order}/total", 4), ("GET", "/orders/{order}/total?coupon=WELCOME10", 2),
     ("GET", "/orders/{order}/total?coupon=DIWALI25", 2), ("GET", "/orders/9999", 1),
 ]
-BROKEN = [("GET", "/orders/{order}/total?coupon=SUMMER23", 3), ("GET", "/orders/{order}/total?coupon=FREESHIP", 1)]
-
-
-def traffic(incident_after: float, rate: float, duration: float | None) -> None:
+def traffic(incident_after: float, rate: float, duration: float | None, broken: list[tuple]) -> None:
     rng = random.Random(7)
     started = time.monotonic()
     counts = {"ok": 0, "4xx": 0, "5xx": 0}
@@ -152,9 +152,9 @@ def traffic(incident_after: float, rate: float, duration: float | None) -> None:
             elapsed = time.monotonic() - started
             if duration and elapsed > duration:
                 break
-            pool = NORMAL + (BROKEN if elapsed >= incident_after else [])
-            if elapsed >= incident_after and not announced:
-                print(f"\n[demo] t={elapsed:.0f}s: customers start using expired/unknown coupons (SUMMER23) ...")
+            pool = NORMAL + (broken if elapsed >= incident_after else [])
+            if elapsed >= incident_after and broken and not announced:
+                print(f"\n[demo] t={elapsed:.0f}s: trigger traffic starts: {', '.join(p for _, p, _ in broken)} ...")
                 announced = True
             method, template, _ = rng.choices(pool, weights=[w for *_, w in pool])[0]
             path = template.format(sku=rng.choice(["SKU-1001", "SKU-1002", "SKU-1003", "SKU-1004", "SKU-1005"]),
@@ -176,16 +176,25 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--aion", default="http://127.0.0.1:8000", help="AION base URL")
     ap.add_argument("--fresh", action="store_true", help="rebuild the demo repository from scratch")
+    ap.add_argument("--scenario", default=DEFAULT_SCENARIO, choices=list_scenarios(),
+                    help=f"which bug scenario to build (default: {DEFAULT_SCENARIO}); applies with --fresh")
+    ap.add_argument("--list", action="store_true", help="list scenarios and exit")
     ap.add_argument("--incident-after", type=float, default=45, help="seconds of normal traffic before the bug is hit")
     ap.add_argument("--rate", type=float, default=4.0, help="requests per second")
     ap.add_argument("--duration", type=float, default=None, help="stop after N seconds (default: run until Ctrl+C)")
     args = ap.parse_args()
+    if args.list:
+        for name in list_scenarios():
+            sc = load_scenario(name)
+            print(f"{name:20} {sc.title}\n{'':20} {sc.description}\n")
+        return
     try:
         httpx.get(f"{args.aion}/api/health", timeout=3).raise_for_status()
     except httpx.HTTPError:
         sys.exit(f"[demo] AION is not reachable at {args.aion}. Start it first: backend\\.venv\\Scripts\\python -m aion")
 
-    setup(args.aion, args.fresh)
+    setup(args.aion, args.fresh, args.scenario)
+    broken = [tuple(t) for t in load_scenario(args.scenario).trigger]
     runtime = ProductionRuntime()
     runtime.start()
     runtime.watch()
@@ -193,7 +202,7 @@ def main() -> None:
           "a controller redeploys it whenever the main branch moves")
     print(f"[demo] sending traffic at {args.rate}/s; the bug is triggered after {args.incident_after:.0f}s. Ctrl+C to stop.")
     try:
-        traffic(args.incident_after, args.rate, args.duration)
+        traffic(args.incident_after, args.rate, args.duration, broken)
     except KeyboardInterrupt:
         pass
     finally:

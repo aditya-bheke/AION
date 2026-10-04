@@ -32,6 +32,8 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-24](#d-24-append-only-audit-table) | Append-only audit table | Audit | Accepted |
 | [D-25](#d-25-a-real-demo-service-with-synthetic-git-history) | Real demo service with synthetic git history | Demo | Accepted |
 | [D-26](#d-26-intentionally-not-in-the-mvp) | Intentionally NOT in the MVP | Scope | Accepted |
+| [D-27](#d-27-scenario-based-evaluation-with-known-answers) | Scenario-based evaluation with known answers | Evaluation | Accepted |
+| [D-28](#d-28-local-llm-via-portable-ollama-on-d-with-a-12k-context-window) | Local LLM via portable Ollama on D:, 12k context | AI / Infrastructure | Accepted |
 
 ---
 
@@ -656,3 +658,63 @@ Area: Scope
 | Metrics/traces as detection input | Logs are enough to demonstrate the workflow | Post-MVP |
 | Vector search | Not needed for exact retrieval (D-13) | When runbooks/docs are added |
 | Kubernetes, Kafka, microservices | No scaling need (D-02) | Only if scale demands it |
+
+---
+
+# Decision: D-27 Scenario-based evaluation with known answers
+
+Date: 2026-10-04
+Status: Accepted
+Area: Evaluation
+
+## Context
+One demo bug proves the workflow runs, not that AION *works*. "Does it only work for one bug?" is the obvious review question, and comparing analyzers (no LLM vs local model vs Claude) needs numbers.
+
+## Options Considered
+- A. Manual testing of a few incidents.
+- B. Public benchmarks (Defects4J, SWE-bench) — test-suite repair, no production telemetry, deployments or traffic.
+- C. A small suite of realistic incident scenarios on the demo service, each with a known culprit commit, run automatically through the real pipeline and scored.
+
+## Decision
+C. `demo/scenarios/<name>/scenario.json` (+ commit overlays) on top of a shared base history; `evaluation/run_eval.py` builds each scenario in an isolated temp workspace, generates logs by running the real service, runs the pipeline, and scores: detection correct, culprit rank in correlation, RCA names the culprit, validation outcome, regression test reproduction, final status, time and tokens. Results go to `evaluation/results/`.
+
+Scenarios are chosen to stress *different* parts of AION: culprit changed the crashing line (`expired-coupon`), culprit changed only data so blame points at innocent old code (`supplier-feed`), a latent condition activated by a new feature (`empty-cart-average`), and a no-incident release with noise (`healthy-release`, false-positive check).
+
+## Reason
+Repeatable, comparable across analyzers, honest about failures (the deterministic analyzer is *expected* to fail `supplier-feed`), cheap to extend.
+
+## Trade-offs
+− Small and self-authored: results show relative strengths and failure modes, not general accuracy. Every scenario is Python on one service.
+
+## Future Reconsideration
+Grow the suite (more bug classes, other languages), add repeated runs per scenario to measure LLM variance.
+
+---
+
+# Decision: D-28 Local LLM via portable Ollama on D:, with a 12k context window
+
+Date: 2026-10-04
+Status: Accepted
+Area: AI / Infrastructure
+
+## Context
+The team wants a free, local model and all project data on the D: drive. LM Studio's desktop app could not be started from the automation session, and the LM Studio installation turned out to be a non-working leftover.
+
+## Options Considered
+- A. LM Studio (GUI app; models folder configurable).
+- B. Ollama installer (installs to the user profile on C:, tray app).
+- C. Ollama **portable zip** extracted to `D:\Ollama`, models in `D:\Ollama\models` (`OLLAMA_MODELS`), server started explicitly.
+- Model: qwen2.5-coder 3B (fits the 6 GB GPU fully) vs **7B Q4_K_M (~4.7 GB, a few layers spill to CPU)**.
+
+## Decision
+C with `qwen2.5-coder:7b`, accessed through AION's existing OpenAI-compatible adapter (`http://127.0.0.1:11434/v1`). Ollama is started with `OLLAMA_CONTEXT_LENGTH=12288`; AION caps local output at 4096 tokens (`AION_OPENAI_MAX_TOKENS`).
+
+## Reason
+Everything lives on D:, nothing is installed on C:, and the server is scriptable without a GUI. The 7B coder model gives noticeably better code reasoning than 3B. **Measured** AION prompts are ~5.6–6.9k tokens (RCA) and ~3.1–3.3k (patch); Ollama's default 4096-token context would silently truncate the beginning of every RCA prompt (system rules and incident header), so the context must be raised explicitly.
+
+## Trade-offs
+− Slower than a hosted API; a 7B model is weaker than frontier models (the evaluation quantifies this).
+− The server must be started before AION is used (`scripts\start-ollama.ps1`).
+
+## Future Reconsideration
+If GPU memory allows, a larger coder model; or Claude for best quality — both are configuration changes only.

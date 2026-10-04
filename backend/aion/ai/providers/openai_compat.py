@@ -5,6 +5,7 @@ providers (OpenAI, Groq, OpenRouter, ...) with one small adapter.
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
@@ -13,13 +14,16 @@ from aion.ai.providers.base import LLMError, LLMResponse
 
 
 class OpenAICompatProvider:
-    def __init__(self, base_url: str, model: str, api_key: str = "", timeout: float = 300.0):
+    def __init__(self, base_url: str, model: str, api_key: str = "", timeout: float = 300.0,
+                 max_output_tokens: int = 4096):
         if not base_url or not model:
             raise ValueError("AION_OPENAI_BASE_URL and AION_OPENAI_MODEL must both be set")
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api_key = api_key
         self.timeout = timeout
+        # Local models have small context windows; a huge output budget would crowd out the prompt.
+        self.max_output_tokens = max_output_tokens
         self.name = f"openai_compat:{model}"
         # Not every server supports json_schema; degrade to json_object, then to prompt-only.
         self._format_modes = ["json_schema", "json_object", "none"]
@@ -27,13 +31,14 @@ class OpenAICompatProvider:
     def complete_json(self, system: str, user: str, schema: dict[str, Any], schema_name: str,
                       max_tokens: int) -> LLMResponse:
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}
-        system_with_schema = f"{system}\n\nRespond with a single JSON object matching this JSON schema:\n{schema}"
+        system_with_schema = (f"{system}\n\nRespond with a single JSON object matching this JSON schema:\n"
+                              f"{json.dumps(schema)}")
         last_error = ""
         for mode in list(self._format_modes):
             body: dict[str, Any] = {
                 "model": self.model,
                 "messages": [{"role": "system", "content": system_with_schema}, {"role": "user", "content": user}],
-                "max_tokens": max_tokens,
+                "max_tokens": min(max_tokens, self.max_output_tokens),
                 "temperature": 0.1,
             }
             if mode == "json_schema":

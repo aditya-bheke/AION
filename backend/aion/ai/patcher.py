@@ -40,7 +40,8 @@ PATCH_SYSTEM_PROMPT = """You are AION's remediation engine. You write minimal, s
 
 Rules:
 1. Fix the root cause with the smallest correct change. Do not refactor, rename, or reformat unrelated code.
-2. Express changes as search/replace edits. `search` must be copied EXACTLY from the file contents shown (same indentation and spacing) and must appear exactly once in that file.
+2. Express changes as search/replace edits. `search` must be copied EXACTLY from the file contents shown (same indentation and spacing) and must appear exactly once in that file. `replace` must contain complete lines with the exact indentation they must have in the file (Python indentation is syntax).
+2b. Handle the failing value everywhere it is used in the affected function, not only on the line that crashed.
 3. You may only edit the files shown to you. Do not modify existing tests or CI configuration; never weaken or delete assertions to make tests pass.
 4. Add one regression test as a new file named tests/test_aion_<short_name>.py that reproduces the incident (it must fail on the current code and pass with your fix). Use the same test style and imports as the existing tests shown.
 5. Preserve existing behaviour for inputs that currently work.

@@ -54,3 +54,29 @@ def test_diff_size_limit():
     big = "+++ b/app/a.py\n" + "\n".join(f"+line {i}" for i in range(500))
     with pytest.raises(PolicyViolation):
         check_diff_size(big)
+
+
+def test_indentation_only_repair_when_model_drops_relative_indentation(tmp_path):
+    (tmp_path / "app").mkdir()
+    src = "def apply_discount(subtotal, coupon):\n    discount = subtotal * coupon['percent'] / 100\n    return discount\n"
+    (tmp_path / "app" / "p.py").write_text(src, encoding="utf-8")
+    # What a small model actually produced: first line indented, the rest at the wrong level.
+    bad = "    if coupon is None:\n    discount = 0.0\nelse:\n    discount = subtotal * coupon['percent'] / 100\n"
+    notes = []
+    apply_edits(tmp_path, [FileEdit(path="app/p.py", search="    discount = subtotal * coupon['percent'] / 100\n",
+                                    replace=bad)], [], {"app/p.py"}, notes)
+    fixed = (tmp_path / "app" / "p.py").read_text(encoding="utf-8")
+    namespace = {}
+    exec(fixed, namespace)  # parses and runs
+    assert namespace["apply_discount"](100, None) == 0.0
+    assert namespace["apply_discount"](100, {"percent": 10}) == 10
+    assert notes and "indentation-only repair" in notes[0]
+
+
+def test_correct_edits_are_never_reindented(tree):
+    root, files = tree
+    notes = []
+    apply_edits(root, [FileEdit(path="app/b.py", search="    return 1", replace="    if True:\n        return 1")],
+                [], files, notes)
+    assert notes == []
+    assert "    if True:\n        return 1" in (root / "app/b.py").read_text()

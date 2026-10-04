@@ -1,0 +1,238 @@
+[
+  {
+    "scenario": "empty-cart-average",
+    "title": "New average-price field divides by zero for empty carts (ZeroDivisionError)",
+    "mode": "heuristic",
+    "analyzer": "heuristic (no LLM)",
+    "log_events": 39,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 4.3,
+    "title_detected": "ZeroDivisionError: float division by zero",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "d39d875",
+        "score": 1.0,
+        "message": "Show item count and average item price on order totals",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:28 (in compute_total) [git blame]",
+          "Modified 4 line(s) of function compute_total() in app/pricing.py [git blame]",
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:12 UTC)",
+          "Touched file(s) in the stack trace: app/pricing.py",
+          "Commit message mentions: order"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "e66bb59",
+        "score": 0.375,
+        "message": "Add coupon support to order totals",
+        "reasons": [
+          "Modified 10 line(s) of function compute_total() in app/pricing.py [git blame]",
+          "Last modified the calling line app/main.py:77 (in order_total) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "682ea29",
+        "score": 0.325,
+        "message": "Initial orders service: catalog, order lookup and JSON logging",
+        "reasons": [
+          "Last modified the calling line app/main.py:34 (in access_log) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py",
+          "Changed app/__init__.py, app/catalog.py, app/logging_setup.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Modified 11 line(s) of function access_log() in app/main.py [git blame]",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.8,
+    "rca_root_cause": "ZeroDivisionError: float division by zero at app/pricing.py:28 in compute_total(). The failing code was most recently changed by commit d39d875 \"Show item count and average item price on order totals\" by Rahul Verma, shipped in deployment v1.4.0.",
+    "grounding_warnings": 0,
+    "patch_attempts": 1,
+    "patch_strategy": "revert",
+    "patch_status": "passed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "skipped",
+      "unit_tests": "passed",
+      "staging_deploy": "passed",
+      "replay_requests": "passed"
+    },
+    "patch_diff": "diff --git a/app/pricing.py b/app/pricing.py\nindex 1f162d6..dea801f 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -24,13 +24,9 @@ def compute_total(order, coupon_code=None):\n         discount = apply_discount(subtotal, coupon)\n     taxable = subtotal - discount\n     tax = round(taxable * GST_RATE, 2)\n-    item_count = sum(item[\"qty\"] for item in order[\"items\"])\n-    average_item_price = round(subtotal / item_count, 2)\n     return {\n         \"order_id\": order[\"id\"],\n         \"coupon\": coupon_code.upper() if coupon_code else None,\n-        \"item_count\": item_count,\n-        \"average_item_price\": average_item_price,\n         \"subtotal\": subtotal,\n         \"discount\": discount,\n         \"tax\": tax,\ndiff --git a/tests/test_pricing.py b/tests/test_pricing.py\nindex 45f1ac6..226ee67 100644\n--- a/tests/test_pricing.py\n+++ b/tests/test_pricing.py\n@@ -16,9 +16,3 @@ def test_welcome_coupon_discount():\n     result = pricing.compute_total(catalog.get_order(1002), \"WELCOME10\")\n     assert result[\"discount\"] == round(15999.00 * 0.10, 2)\n     assert result[\"coupon\"] == \"WELCOME10\"\n-\n-\n-def test_average_item_price():\n-    result = pricing.compute_total(catalog.get_order(1001))\n-    assert result[\"item_count\"] == 3\n-    assert result[\"average_item_price\"] == round((3499.00 + 2 * 899.00) / 3, 2)\n",
+    "failed_step": null,
+    "final_status": "awaiting_approval",
+    "automated_success": true,
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  {
+    "scenario": "expired-coupon",
+    "title": "Expired coupon crashes pricing (TypeError)",
+    "mode": "heuristic",
+    "analyzer": "heuristic (no LLM)",
+    "log_events": 44,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 4.2,
+    "title_detected": "TypeError: 'NoneType' object is not subscriptable",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "3109ca5",
+        "score": 1.0,
+        "message": "Support seasonal campaigns: coupon expiry and maximum discount",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:17 (in apply_discount) [git blame]",
+          "Modified 3 line(s) of function apply_discount() in app/pricing.py [git blame]",
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:19 UTC)",
+          "Touched file(s) in the stack trace: app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: discount"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "ea2487d",
+        "score": 0.375,
+        "message": "Add coupon support to order totals",
+        "reasons": [
+          "Modified 1 line(s) of function apply_discount() in app/pricing.py [git blame]",
+          "Last modified the calling line app/pricing.py:26 (in compute_total) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "db6d4b0",
+        "score": 0.35,
+        "message": "Add request duration to access logs",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:19 UTC)",
+          "Touched file(s) in the stack trace: app/main.py"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.8,
+    "rca_root_cause": "TypeError: 'NoneType' object is not subscriptable at app/pricing.py:17 in apply_discount(). The failing code was most recently changed by commit 3109ca5 \"Support seasonal campaigns: coupon expiry and maximum discount\" by Rahul Verma, shipped in deployment v1.4.0.",
+    "grounding_warnings": 0,
+    "patch_attempts": 1,
+    "patch_strategy": "revert",
+    "patch_status": "passed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "skipped",
+      "unit_tests": "passed",
+      "staging_deploy": "passed",
+      "replay_requests": "passed"
+    },
+    "patch_diff": "diff --git a/app/coupons.py b/app/coupons.py\nindex 03e1914..ec1d5b4 100644\n--- a/app/coupons.py\n+++ b/app/coupons.py\n@@ -1,22 +1,12 @@\n-\"\"\"Coupon codes and seasonal campaigns.\"\"\"\n-from datetime import date\n+\"\"\"Coupon codes.\"\"\"\n \n-# code -> (percent off, maximum discount in rupees, valid until)\n COUPONS = {\n-    \"WELCOME10\": (10, 500, date(2099, 12, 31)),\n-    \"FESTIVE20\": (20, 2000, date(2099, 12, 31)),\n-    \"SUMMER23\": (15, 1500, date(2023, 8, 31)),\n-    \"DIWALI25\": (25, 3000, date(2099, 11, 30)),\n+    \"WELCOME10\": 10,\n+    \"FESTIVE20\": 20,\n }\n \n \n-def get_coupon(code, today=None):\n-    \"\"\"Return the active coupon for `code`, or None if it is unknown or expired.\"\"\"\n-    today = today or date.today()\n-    entry = COUPONS.get(code.upper())\n-    if entry is None:\n-        return None\n-    percent, max_discount, valid_until = entry\n-    if today > valid_until:\n-        return None\n-    return {\"code\": code.upper(), \"percent\": percent, \"max_discount\": max_discount}\n+def get_coupon(code):\n+    \"\"\"Return the coupon for `code`. Unknown codes give no discount.\"\"\"\n+    percent = COUPONS.get(code.upper(), 0)\n+    return {\"code\": code.upper(), \"percent\": percent}\ndiff --git a/app/pricing.py b/app/pricing.py\nindex b1078a8..dea801f 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -13,9 +13,7 @@ def order_subtotal(order):\n \n \n def apply_discount(subtotal, coupon):\n-    \"\"\"Percentage discount, capped at the campaign's maximum discount.\"\"\"\n-    discount = subtotal * coupon[\"percent\"] / 100\n-    return round(min(discount, coupon[\"max_discount\"]), 2)\n+    return round(subtotal * coupon[\"percent\"] / 100, 2)\n \n \n def compute_total(order, coupon_code=None):\ndiff --git a/tests/test_pricing.py b/tests/test_pricing.py\nindex 1377096..226ee67 100644\n--- a/tests/test_pricing.py\n+++ b/tests/test_pricing.py\n@@ -14,10 +14,5 @@ def test_total_includes_gst():\n \n def test_welcome_coupon_discount():\n     result = pricing.compute_total(catalog.get_order(1002), \"WELCOME10\")\n-    assert result[\"discount\"] == 500.00  # 10% capped at Rs 500\n+    assert result[\"discount\"] == round(15999.00 * 0.10, 2)\n     assert result[\"coupon\"] == \"WELCOME10\"\n-\n-\n-def test_campaign_coupon_is_capped():\n-    result = pricing.compute_total(catalog.get_order(1005), \"DIWALI25\")\n-    assert result[\"discount\"] == 3000.00\n",
+    "failed_step": null,
+    "final_status": "awaiting_approval",
+    "automated_success": true,
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  {
+    "scenario": "healthy-release",
+    "title": "Harmless release with background noise (no incident expected)",
+    "mode": "heuristic",
+    "analyzer": "heuristic (no LLM)",
+    "log_events": 31,
+    "incidents_opened": 0,
+    "expected_incident": false,
+    "detection_correct": true,
+    "final_status": "no incident",
+    "automated_success": true
+  },
+  {
+    "scenario": "supplier-feed",
+    "title": "Supplier product uses a different field name (KeyError)",
+    "mode": "heuristic",
+    "analyzer": "heuristic (no LLM)",
+    "log_events": 39,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 4.4,
+    "title_detected": "KeyError: 'price'",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "7b6dbc9",
+        "score": 0.4,
+        "message": "Import DockCo supplier catalogue: add SKU-1006 and first order",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:28 UTC)",
+          "Changed app/catalog.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order, price"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "691e8d4",
+        "score": 0.4,
+        "message": "Add order pricing with GST calculation",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:11 (in order_subtotal) [git blame]",
+          "Modified 6 line(s) of function order_subtotal() in app/pricing.py [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "aa5c4d4",
+        "score": 0.35,
+        "message": "Add request duration to access logs",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:28 UTC)",
+          "Touched file(s) in the stack trace: app/main.py"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.32,
+    "rca_root_cause": "KeyError: 'price' at app/pricing.py:11 in order_subtotal(). The failing code was most recently changed by commit 7b6dbc9 \"Import DockCo supplier catalogue: add SKU-1006 and first order\" by Karan Mehta, shipped in deployment v1.4.0.",
+    "grounding_warnings": 0,
+    "patch_attempts": 1,
+    "patch_strategy": "revert",
+    "patch_status": "passed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "skipped",
+      "unit_tests": "passed",
+      "staging_deploy": "passed",
+      "replay_requests": "passed"
+    },
+    "patch_diff": "diff --git a/app/catalog.py b/app/catalog.py\nindex c7f6945..6742c2c 100644\n--- a/app/catalog.py\n+++ b/app/catalog.py\n@@ -9,8 +9,6 @@ PRODUCTS = {\n     \"SKU-1003\": {\"sku\": \"SKU-1003\", \"name\": \"27-inch Monitor\", \"price\": 15999.00},\n     \"SKU-1004\": {\"sku\": \"SKU-1004\", \"name\": \"USB-C Hub\", \"price\": 1299.00},\n     \"SKU-1005\": {\"sku\": \"SKU-1005\", \"name\": \"Laptop Stand\", \"price\": 1499.00},\n-    # Imported from the DockCo supplier feed (feed field names).\n-    \"SKU-1006\": {\"sku\": \"SKU-1006\", \"name\": \"USB-C Docking Station\", \"unit_price\": 8999.00, \"supplier\": \"DockCo\"},\n }\n \n ORDERS = {\n@@ -22,7 +20,6 @@ ORDERS = {\n     1006: {\"id\": 1006, \"customer\": \"C-506\", \"items\": [{\"sku\": \"SKU-1005\", \"qty\": 4}]},\n     1007: {\"id\": 1007, \"customer\": \"C-507\", \"items\": [{\"sku\": \"SKU-1004\", \"qty\": 1}, {\"sku\": \"SKU-1002\", \"qty\": 1}]},\n     1008: {\"id\": 1008, \"customer\": \"C-508\", \"items\": [{\"sku\": \"SKU-1003\", \"qty\": 2}]},\n-    1009: {\"id\": 1009, \"customer\": \"C-509\", \"items\": [{\"sku\": \"SKU-1006\", \"qty\": 1}, {\"sku\": \"SKU-1002\", \"qty\": 1}]},\n }\n \n # Large items are not kept in the hot inventory cache.\ndiff --git a/tests/test_api.py b/tests/test_api.py\nindex 5574924..d7088b0 100644\n--- a/tests/test_api.py\n+++ b/tests/test_api.py\n@@ -14,7 +14,7 @@ def test_health():\n def test_list_products():\n     r = client.get(\"/products\")\n     assert r.status_code == 200\n-    assert len(r.json()) == 6\n+    assert len(r.json()) == 5\n \n \n def test_get_order():\n@@ -29,9 +29,3 @@ def test_unknown_order_is_404():\n \n def test_unknown_product_is_404():\n     assert client.get(\"/products/SKU-0000\").status_code == 404\n-\n-\n-def test_supplier_product_is_listed():\n-    r = client.get(\"/products/SKU-1006\")\n-    assert r.status_code == 200\n-    assert r.json()[\"supplier\"] == \"DockCo\"\n",
+    "failed_step": null,
+    "final_status": "awaiting_approval",
+    "automated_success": true,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+]

@@ -1,0 +1,78 @@
+[
+  {
+    "scenario": "supplier-feed",
+    "title": "Supplier product uses a different field name (KeyError)",
+    "mode": "heuristic",
+    "analyzer": "heuristic (no LLM)",
+    "log_events": 39,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 4.7,
+    "title_detected": "KeyError: 'price'",
+    "exception_correct": true,
+    "culprit_rank": 2,
+    "top_suspects": [
+      {
+        "commit": "edc6c7d",
+        "score": 0.4,
+        "message": "Add request duration to access logs",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:06 UTC, the last deployment before errors began (13:07:01 UTC)",
+          "Touched file(s) in the stack trace: app/main.py",
+          "Commit message mentions: access, request"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "7c08966",
+        "score": 0.4,
+        "message": "Import DockCo supplier catalogue: add SKU-1006 and first order",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 10:06 UTC, the last deployment before errors began (13:07:01 UTC)",
+          "Changed app/catalog.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order, price"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "18a7a34",
+        "score": 0.4,
+        "message": "Add order pricing with GST calculation",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:11 (in order_subtotal) [git blame]",
+          "Modified 6 line(s) of function order_subtotal() in app/pricing.py [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": false,
+    "rca_confidence": 0.32,
+    "rca_root_cause": "KeyError: 'price' at app/pricing.py:11 in order_subtotal(). The failing code was most recently changed by commit edc6c7d \"Add request duration to access logs\" by Ananya Iyer, shipped in deployment v1.4.0.",
+    "grounding_warnings": 0,
+    "patch_attempts": 1,
+    "patch_strategy": "revert",
+    "patch_status": "failed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "skipped",
+      "unit_tests": "passed",
+      "staging_deploy": "passed",
+      "replay_requests": "failed"
+    },
+    "patch_diff": "diff --git a/app/main.py b/app/main.py\nindex bf5e90a..81a8adc 100644\n--- a/app/main.py\n+++ b/app/main.py\n@@ -2,7 +2,6 @@\n import logging\n import os\n import subprocess\n-import time\n \n from fastapi import FastAPI, HTTPException, Request\n from fastapi.responses import JSONResponse\n@@ -30,15 +29,14 @@ COMMIT = _current_commit()\n \n @app.middleware(\"http\")\n async def access_log(request: Request, call_next):\n-    started = time.perf_counter()\n     req = {\"method\": request.method, \"path\": request.url.path, \"query\": request.url.query}\n     try:\n         response = await call_next(request)\n     except Exception:\n-        req.update(status=500, duration_ms=round((time.perf_counter() - started) * 1000, 2))\n+        req[\"status\"] = 500\n         log.exception(\"Unhandled exception while processing request\", extra={\"request\": req})\n         return JSONResponse(status_code=500, content={\"detail\": \"Internal Server Error\"})\n-    req.update(status=response.status_code, duration_ms=round((time.perf_counter() - started) * 1000, 2))\n+    req[\"status\"] = response.status_code\n     log.info(\"%s %s -> %s\", request.method, request.url.path, response.status_code, extra={\"request\": req})\n     return response\n \n",
+    "failed_step": {
+      "name": "replay_requests",
+      "summary": "1 of 10 replayed requests did not meet expectations",
+      "output": "[FAIL] incident GET /orders/1009/total -> 500\n[OK] baseline GET /orders/1002/total?coupon=WELCOME10 -> 200\n[OK] baseline GET /orders/1004/total -> 200\n[OK] baseline GET /orders/1003 -> 200\n[OK] baseline GET /products/SKU-1003 -> 200\n[OK] baseline GET /products -> 200\n[OK] baseline GET /orders/1003/total -> 200\n[OK] baseline GET /orders/1002 -> 200\n[OK] baseline GET /orders/1002/total -> 200\n[OK] baseline GET /orders/1001 -> 200"
+    },
+    "final_status": "validation_failed",
+    "automated_success": false,
+    "input_tokens": 0,
+    "output_tokens": 0
+  }
+]

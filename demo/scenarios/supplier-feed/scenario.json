@@ -1,0 +1,34 @@
+{
+  "name": "supplier-feed",
+  "title": "Supplier product uses a different field name (KeyError)",
+  "description": "A catalogue import adds SKU-1006 with the supplier's field name 'unit_price'. Pricing code (unchanged for days) reads product['price'] and crashes for orders containing it. The culprit commit did NOT touch the crashing line, so git blame points at old code: the analyzer must read the diffs to find the real cause.",
+  "base_until": "05-docs",
+  "commits": [
+    {
+      "dir": "01-supplier-feed",
+      "author": "Karan Mehta <karan@shop.example>",
+      "hours_ago": 7,
+      "message": "Import DockCo supplier catalogue: add SKU-1006 and first order\n\nProducts from the supplier feed keep the feed's field names (unit_price, supplier)."
+    },
+    {
+      "dir": "../../orders-service-history/07-request-timing",
+      "author": "Ananya Iyer <ananya@shop.example>",
+      "hours_ago": 5,
+      "message": "Add request duration to access logs",
+      "deploy": "v1.4.0",
+      "deploy_hours_ago": 3
+    }
+  ],
+  "trigger": [
+    [
+      "GET",
+      "/orders/1009/total",
+      3
+    ]
+  ],
+  "expected": {
+    "incident": true,
+    "exception_type": "KeyError",
+    "culprit": "Import DockCo supplier catalogue: add SKU-1006 and first order"
+  }
+}

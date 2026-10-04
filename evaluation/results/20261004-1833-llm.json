@@ -1,0 +1,41 @@
+[
+  {
+    "scenario": "expired-coupon",
+    "title": "Expired coupon crashes pricing (TypeError)",
+    "mode": "llm",
+    "analyzer": "openai_compat:qwen2.5-coder:7b",
+    "log_events": 44,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 91.5,
+    "title_detected": "TypeError: 'NoneType' object is not subscriptable",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.8,
+    "rca_root_cause": "The `apply_discount` function in `app/pricing.py` is incorrectly accessing a dictionary key without checking if the dictionary is `None`. This leads to a `TypeError` when trying to subscript a `NoneType` object.",
+    "grounding_warnings": 0,
+    "patch_attempts": 2,
+    "patch_strategy": "llm_edit",
+    "patch_status": "failed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "failed",
+      "regression_reproduce": "skipped",
+      "unit_tests": "skipped",
+      "staging_deploy": "skipped",
+      "replay_requests": "skipped"
+    },
+    "patch_diff": "diff --git a/app/pricing.py b/app/pricing.py\nindex b1078a8..e7f522a 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -14,6 +14,9 @@ def order_subtotal(order):\n \n def apply_discount(subtotal, coupon):\n     \"\"\"Percentage discount, capped at the campaign's maximum discount.\"\"\"\n+    if coupon is None:\n+    discount = 0.0\n+else:\n     discount = subtotal * coupon[\"percent\"] / 100\n     return round(min(discount, coupon[\"max_discount\"]), 2)\n \ndiff --git a/tests/test_aion_coupon_none.py b/tests/test_aion_coupon_none.py\nnew file mode 100644\nindex 0000000..e042dcd\n--- /dev/null\n+++ b/tests/test_aion_coupon_none.py\n@@ -0,0 +1,5 @@\n+from app import pricing\n+def test_coupon_none():\n+    result = pricing.compute_total(catalog.get_order(1001), None)\n+    assert result[\"discount\"] == 0.0\n+    assert result[\"coupon\"] is None\n",
+    "failed_step": {
+      "name": "syntax_check",
+      "summary": "Compilation failed",
+      "output": "Sorry: IndentationError: expected an indented block after 'if' statement on line 17 (app/pricing.py, line 18)"
+    },
+    "final_status": "validation_failed",
+    "automated_success": false,
+    "input_tokens": 14071,
+    "output_tokens": 1218
+  }
+]

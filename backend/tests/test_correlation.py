@@ -47,3 +47,27 @@ def test_blame_and_deployment_point_at_the_campaign_commit(demo_repo):
     assert older.score < 0.5 < top.score
     assert any("Already in production" in r for r in older.reasons)
     assert top.score == 1.0
+
+
+def test_dependency_signal_finds_data_change_off_the_stack(tmp_path):
+    """supplier-feed: the culprit changed catalog.py (imported by pricing.py), not the crashing line."""
+    from demo_repo import build_repo
+
+    repo_dir = tmp_path / "repo"
+    commits = build_repo(repo_dir, scenario="supplier-feed")
+    culprit = next(c for c in commits if c.message.startswith("Import DockCo"))
+    deps = [DeploymentInfo(c.deploy_version, c.sha, c.deployed_at) for c in commits if c.deploy_version]
+    p = "C:/x/orders-service/"
+    frames = [
+        {"file": p + "app/main.py", "line": _line_of(repo_dir, "app/main.py", "pricing.compute_total(order, coupon)"),
+         "function": "order_total"},
+        {"file": p + "app/pricing.py", "line": _line_of(repo_dir, "app/pricing.py", "subtotal = order_subtotal(order)"),
+         "function": "compute_total"},
+        {"file": p + "app/pricing.py", "line": _line_of(repo_dir, "app/pricing.py", 'product["price"]'),
+         "function": "order_subtotal"},
+    ]
+    result = correlate(GitRepo(repo_dir), "main", frames, ["KeyError: 'price'"],
+                       deps[-1].deployed_at + timedelta(hours=1), deps)
+    top = result.suspects[0]
+    assert top.commit.sha == culprit.sha
+    assert any("imported by the failing code" in r for r in top.reasons)

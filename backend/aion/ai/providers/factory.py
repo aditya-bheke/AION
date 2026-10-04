@@ -47,7 +47,8 @@ def get_provider(settings: Settings) -> Optional[LLMProvider]:
         from aion.ai.providers.openai_compat import OpenAICompatProvider
 
         provider = OpenAICompatProvider(settings.openai_base_url, settings.openai_model,
-                                        settings.openai_api_key, settings.llm_timeout_seconds)
+                                        settings.openai_api_key, settings.llm_timeout_seconds,
+                                        settings.openai_max_tokens)
     elif kind == "none":
         provider = None
     else:

@@ -7,7 +7,7 @@ _Last updated: 2026-10-04_
 
 | | |
 |---|---|
-| Backend tests | 33 passing (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
+| Backend tests | 41 passing (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
 | Live demo | verified: incident detected → awaiting approval in ~4 s; approve + deploy → verified + resolved in ~2 s |
 | AI mode on this machine | heuristic (no LLM configured). LLM path implemented and tested with a scripted provider; needs `ANTHROPIC_API_KEY` or a local OpenAI-compatible model to run live |
 | Dashboard | built (`frontend/dist`), served at http://127.0.0.1:8000 |
@@ -25,7 +25,7 @@ _Last updated: 2026-10-04_
 - Audit trail; React dashboard; demo service + GitOps controller; documentation system.
 
 ## Currently being worked on
-Nothing in progress — MVP milestone complete. Next work items are listed under "What remains".
+**Phase 2 — real AI + evaluation (paused mid-way).** Done: local LLM (Ollama + qwen2.5-coder:7b on D:), 4 bug scenarios, evaluation harness, fixes found by evaluation (heuristic mode now 4/4). Remaining: re-run LLM-mode evaluation, write docs/EVALUATION.md, live demo in LLM mode. Details and resume steps: `docs/logs/2026-10-04-05-phase2-local-llm-and-evaluation.md`.
 
 ## Known bugs
 - None open. Four bugs found during live testing were fixed (see `docs/logs/2026-10-04-03-…`).

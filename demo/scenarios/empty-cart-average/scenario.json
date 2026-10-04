@@ -1,0 +1,42 @@
+{
+  "name": "empty-cart-average",
+  "title": "New average-price field divides by zero for empty carts (ZeroDivisionError)",
+  "description": "Draft carts (possibly empty) have been stored as orders since v1.3.1 without problems. A new 'average item price' field divides by the item count, which is zero for an empty cart.",
+  "base_until": "05-docs",
+  "commits": [
+    {
+      "dir": "01-draft-carts",
+      "author": "Priya Sharma <priya@shop.example>",
+      "hours_ago": 30,
+      "message": "Persist draft carts as orders",
+      "deploy": "v1.3.1",
+      "deploy_hours_ago": 28
+    },
+    {
+      "dir": "02-average-price",
+      "author": "Rahul Verma <rahul@shop.example>",
+      "hours_ago": 6,
+      "message": "Show item count and average item price on order totals"
+    },
+    {
+      "dir": "03-docs",
+      "author": "Karan Mehta <karan@shop.example>",
+      "hours_ago": 4,
+      "message": "Docs: describe pricing fields in README",
+      "deploy": "v1.4.0",
+      "deploy_hours_ago": 3
+    }
+  ],
+  "trigger": [
+    [
+      "GET",
+      "/orders/1010/total",
+      3
+    ]
+  ],
+  "expected": {
+    "incident": true,
+    "exception_type": "ZeroDivisionError",
+    "culprit": "Show item count and average item price on order totals"
+  }
+}

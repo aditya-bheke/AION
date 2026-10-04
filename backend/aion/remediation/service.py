@@ -112,7 +112,10 @@ def create_patch(session: Session, incident: Incident, service: Service, rca: RC
             proposal.edits = [e.model_dump() for e in out.edits] + [
                 {"path": nf.path, "new_file": True, "content": nf.content} for nf in out.new_test_files]
             proposal.usage = dict(result.usage, latency_ms=result.latency_ms, attempts=result.attempts)
-            apply_edits(wt, out.edits, out.new_test_files, set(repo.ls_files(base)))
+            repair_notes: list[str] = []
+            apply_edits(wt, out.edits, out.new_test_files, set(repo.ls_files(base)), repair_notes)
+            if repair_notes:
+                proposal.rationale += "\n\nApplied by AION: " + "; ".join(repair_notes)
             summary = out.summary.strip().splitlines()[0][:120] if out.summary.strip() else "candidate fix"
         else:
             if not rca.suspected_commit:

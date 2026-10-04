@@ -9,7 +9,10 @@ Signals (each one is recorded as a human-readable reason):
 2. Blame on the failing function - lines of the enclosing function (found with
                                  Python's `ast`) last modified by the commit.
 3. File overlap                - the commit touched a file in the stack trace.
-4. Deployment timing           - the commit shipped in the deployment that went
+3b. Dependency overlap         - the commit touched a module *imported by* a file
+                                 in the stack trace (data/helpers the failing code
+                                 reads) - catches causes that are not on the stack.
+4. Deployment timing          - the commit shipped in the deployment that went
                                  live right before the errors started.
 5. Keyword overlap             - identifiers from the error (function names,
                                  exception text) appear in the commit message.
@@ -33,6 +36,7 @@ from aion.logs.normalize import app_frames
 W_BLAME_LINE = 0.40
 W_BLAME_FUNCTION = 0.20
 W_FILE_OVERLAP = 0.15
+W_DEPENDENCY = 0.15
 W_DEPLOYMENT = 0.20
 W_KEYWORDS = 0.05
 STABLE_CODE_FACTOR = 0.5
@@ -120,6 +124,38 @@ def _blame(repo: GitRepo, rev: str, path: str, start: int, end: int) -> dict[int
     return result
 
 
+def _imported_repo_files(repo: GitRepo, rev: str, files: set[str], repo_files: set[str]) -> set[str]:
+    """Repository files imported by `files` (Python `import` / `from ... import`), at `rev`."""
+    found: set[str] = set()
+
+    def resolve(module: str) -> None:
+        base = module.replace(".", "/")
+        for candidate in (f"{base}.py", f"{base}/__init__.py"):
+            if candidate in repo_files:
+                found.add(candidate)
+
+    for path in files:
+        try:
+            tree = ast.parse(repo.file_at(rev, path) or "")
+        except SyntaxError:
+            continue
+        package = path.rsplit("/", 1)[0].replace("/", ".") if "/" in path else ""
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    resolve(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if node.level:  # relative import: from . import x / from .x import y
+                    parts = package.split(".") if package else []
+                    parts = parts[: len(parts) - (node.level - 1)] if node.level > 1 else parts
+                    module = ".".join(p for p in parts + ([module] if module else []) if p)
+                resolve(module)
+                for alias in node.names:  # from app import catalog -> app/catalog.py
+                    resolve(f"{module}.{alias.name}" if module else alias.name)
+    return found
+
+
 def _keywords(texts: list[str]) -> set[str]:
     words = set()
     for t in texts:
@@ -205,6 +241,15 @@ def correlate(
         if overlap:
             add(c.sha, "file_overlap", W_FILE_OVERLAP, f"Touched file(s) in the stack trace: {', '.join(sorted(overlap))}")
 
+    # (3b) dependency overlap: the commit changed a module that the failing code imports
+    # (e.g. data or helpers it reads). Catches causes that are not on the stack itself.
+    deps = _imported_repo_files(repo, rev, trace_files, set(repo_files)) - trace_files
+    for c in candidates:
+        overlap = deps.intersection(c.files)
+        if overlap:
+            add(c.sha, "dependency", W_DEPENDENCY,
+                f"Changed {', '.join(sorted(overlap))}, imported by the failing code ({', '.join(sorted(trace_files))})")
+
     # (4) deployment timing
     for sha in shipped:
         if sha in by_sha and suspect_dep:
@@ -213,7 +258,9 @@ def correlate(
                 f"the last deployment before errors began ({first_seen:%H:%M:%S} UTC)")
 
     # (5) keyword overlap
-    kw = _keywords(error_texts + [mf.function for mf in mapped])
+    # Only the specific error and the innermost failing functions - not generic wrapper
+    # text ("Unhandled exception while processing request") or outer middleware frames.
+    kw = _keywords(error_texts + [mf.function for mf in mapped[-3:]])
     for c in candidates:
         hits = sorted(kw.intersection(_keywords([c.message])))
         if hits:
