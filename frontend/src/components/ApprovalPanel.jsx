@@ -1,46 +1,50 @@
 import { useState } from "react";
 import { api } from "../api.js";
+import { hasRole, useUser } from "../auth.js";
 import { Sha } from "./common.jsx";
-
-// Remembering the approver's name is a convenience only; storage may be unavailable.
-const storage = {
-  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
-};
 
 // The human-in-the-loop control. It is the only place in the UI that can move
 // an incident towards production, and it always names the exact commit.
+// Identity comes from the signed-in session; the backend enforces the roles.
 export default function ApprovalPanel({ detail, onChange }) {
+  const user = useUser();
   const { incident, patches, approvals, deployments, validations } = detail;
   const s = incident.status;
   const patch = [...patches].reverse().find((p) => ["passed", "deployed"].includes(p.status));
-  const approval = [...approvals].reverse().find((a) => a.decision === "approved");
-  const [name, setName] = useState(() => storage.get("aion.approver") || "");
+  const approvedBy = patch ? approvals.filter((a) => a.decision === "approved" && a.commit_sha === patch.commit_sha) : [];
+  const required = user.required_approvals || 1;
+  const canDecide = hasRole(user, "approver");
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
   const act = async (fn) => {
     setErr(null);
-    if (name.trim().length < 2) return setErr("Enter your name: approvals are recorded in the audit trail.");
-    storage.set("aion.approver", name.trim());
     setBusy(true);
     try {
-      await fn(name.trim());
+      await fn();
       setComment("");
       onChange();
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message.replace(/^\d+: /, ""));
     } finally {
       setBusy(false);
     }
   };
 
-  const nameField = (
+  const identity = (
+    <p className="muted small">
+      Acting as <b>{user.display_name}</b> ({user.role}). Your decision is recorded in the audit trail under your account.
+    </p>
+  );
+  const commentField = (
     <div className="form-row">
-      <input placeholder="Your name (recorded in the audit trail)" value={name} onChange={(e) => setName(e.target.value)} />
-      <input placeholder="Comment (optional)" value={comment} onChange={(e) => setComment(e.target.value)} />
+      <input placeholder="Comment (optional, recorded in the audit trail)" value={comment}
+             onChange={(e) => setComment(e.target.value)} />
     </div>
+  );
+  const notAllowed = !canDecide && (
+    <p className="muted small">Your role (<b>{user.role}</b>) can view this incident; an <b>approver</b> must decide.</p>
   );
 
   if (["detected", "analyzing", "patching", "validating"].includes(s)) {
@@ -54,6 +58,7 @@ export default function ApprovalPanel({ detail, onChange }) {
 
   if (s === "awaiting_approval" && patch) {
     const lastVal = validations[validations.length - 1];
+    const iApproved = approvedBy.some((a) => a.approver === user.username);
     return (
       <div className="gate gate-warn">
         <div className="gate-title">🔒 Human approval required</div>
@@ -62,15 +67,22 @@ export default function ApprovalPanel({ detail, onChange }) {
           passed all {lastVal?.steps?.filter((x) => x.status === "passed").length ?? 0} blocking validation checks.
           Review the root cause, the diff and the validation results below. Approving binds your decision to this exact commit.
         </p>
-        {nameField}
-        <div className="btn-row">
-          <button className="btn primary" disabled={busy} onClick={() => act((n) => api.approve(incident.id, n, comment))}>
-            Approve patch
-          </button>
-          <button className="btn danger" disabled={busy} onClick={() => act((n) => api.reject(incident.id, n, comment))}>
-            Reject
-          </button>
-        </div>
+        {required > 1 && (
+          <p><b>Two-person rule:</b> {approvedBy.length} of {required} approvals
+            {approvedBy.length > 0 && <> ({approvedBy.map((a) => a.approver).join(", ")})</>}.</p>
+        )}
+        {canDecide ? (
+          <>
+            {identity}
+            {commentField}
+            <div className="btn-row">
+              <button className="btn primary" disabled={busy || iApproved} onClick={() => act(() => api.approve(incident.id, comment))}>
+                {iApproved ? "You approved — waiting for another approver" : "Approve patch"}
+              </button>
+              <button className="btn danger" disabled={busy} onClick={() => act(() => api.reject(incident.id, comment))}>Reject</button>
+            </div>
+          </>
+        ) : notAllowed}
         {err && <p className="error">{err}</p>}
       </div>
     );
@@ -79,20 +91,22 @@ export default function ApprovalPanel({ detail, onChange }) {
   if (s === "approved") {
     return (
       <div className="gate gate-good">
-        <div className="gate-title">✓ Approved by {approval?.approver} — ready to deploy</div>
+        <div className="gate-title">✓ Approved by {approvedBy.map((a) => a.approver).join(" and ")} — ready to deploy</div>
         <p>
-          Deploying fast-forwards the production branch to <Sha sha={approval?.commit_sha} n={10} />, then AION verifies
+          Deploying fast-forwards the production branch to <Sha sha={patch?.commit_sha} n={10} />, then AION verifies
           production health and replays the requests that failed during the incident.
         </p>
-        {nameField}
-        <div className="btn-row">
-          <button className="btn primary" disabled={busy} onClick={() => act((n) => api.deploy(incident.id, n))}>
-            Deploy to production
-          </button>
-          <button className="btn ghost" disabled={busy} onClick={() => act((n) => api.reject(incident.id, n, comment || "withdrawn before deploy"))}>
-            Withdraw approval
-          </button>
-        </div>
+        {canDecide ? (
+          <>
+            {identity}
+            <div className="btn-row">
+              <button className="btn primary" disabled={busy} onClick={() => act(() => api.deploy(incident.id))}>Deploy to production</button>
+              <button className="btn ghost" disabled={busy} onClick={() => act(() => api.reject(incident.id, comment || "withdrawn before deploy"))}>
+                Withdraw approval
+              </button>
+            </div>
+          </>
+        ) : notAllowed}
         {err && <p className="error">{err}</p>}
       </div>
     );
@@ -113,7 +127,7 @@ export default function ApprovalPanel({ detail, onChange }) {
         <div className="gate-title">✓ Resolved — fix deployed and verified in production</div>
         <p>
           Deployment <b>{dep?.version}</b> (<Sha sha={dep?.commit_sha} />) by <b>{dep?.deployed_by}</b>.
-          Approved by <b>{approval?.approver}</b>{approval?.comment ? ` — “${approval.comment}”` : ""}.
+          Approved by <b>{approvedBy.map((a) => a.approver + (a.comment ? ` (“${a.comment}”)` : "")).join(", ")}</b>.
         </p>
       </div>
     );
@@ -137,11 +151,15 @@ export default function ApprovalPanel({ detail, onChange }) {
       <div className="gate-title">✕ {title} — human investigation needed</div>
       {incident.pipeline_error && <pre className="pre small">{incident.pipeline_error}</pre>}
       <p>Nothing was deployed. You can re-run the investigation (for example after configuring an LLM) or reject the incident.</p>
-      {nameField}
-      <div className="btn-row">
-        <button className="btn" disabled={busy} onClick={() => act((n) => api.rerun(incident.id, n))}>Re-run investigation</button>
-        <button className="btn danger" disabled={busy} onClick={() => act((n) => api.reject(incident.id, n, comment))}>Reject</button>
-      </div>
+      {hasRole(user, "engineer") ? (
+        <>
+          {canDecide && commentField}
+          <div className="btn-row">
+            <button className="btn" disabled={busy} onClick={() => act(() => api.rerun(incident.id))}>Re-run investigation</button>
+            {canDecide && <button className="btn danger" disabled={busy} onClick={() => act(() => api.reject(incident.id, comment))}>Reject</button>}
+          </div>
+        </>
+      ) : notAllowed}
       {err && <p className="error">{err}</p>}
     </div>
   );

@@ -55,7 +55,7 @@ def enqueue_pipeline(incident_id: int) -> bool:
     return worker.submit(f"incident-{incident_id}", lambda: run_pipeline(incident_id))
 
 
-def enqueue_deploy(incident_id: int) -> bool:
+def enqueue_deploy(incident_id: int, deployed_by: str) -> bool:
     from aion.pipeline.orchestrator import run_deploy
 
-    return worker.submit(f"deploy-{incident_id}", lambda: run_deploy(incident_id))
+    return worker.submit(f"deploy-{incident_id}", lambda: run_deploy(incident_id, deployed_by))

@@ -6,9 +6,9 @@ The known limitations of the AION MVP and the planned order of post-MVP work.
 
 | Area | Limitation | Impact | Planned fix |
 |---|---|---|---|
-| Security | No authentication; approver is a typed name | anyone with API access could approve | OIDC login + approver role + (optionally) two-person rule |
-| Security | AI-generated code runs on the host during validation (separate process, timeouts, no sandbox) | a malicious/buggy patch could affect the machine | run validation in a disposable container without network |
-| Security | Logs may contain secrets/PII and are sent to the LLM provider when one is configured | data exposure to a third party | redaction before prompting; local model option already exists |
+| Security | Local accounts only (no SSO/MFA); in-memory login lockout | weaker than an identity provider | OIDC login with MFA |
+| Security | Docker sandbox is opt-in (`AION_SANDBOX=docker`); containers share the host kernel | default `local` mode runs patches on the host | make Docker the default; gVisor/Firecracker |
+| Security | Redaction is pattern-based | names/addresses not detected | ML-based PII detection |
 | Languages | Only Python tracebacks and Python `ast` function ranges | other stacks give weaker correlation | parsers for Java/Node/Go traces; tree-sitter for function ranges |
 | Detection | Fixed thresholds; logs only | misses latency/CPU problems; needs tuning | EWMA/z-scores; metrics (Prometheus) input |
 | Correlation | Hand-tuned weights; can't see causes outside the stack (config, data) | some incidents mis-ranked | learn weights from history; config/infra change feeds |

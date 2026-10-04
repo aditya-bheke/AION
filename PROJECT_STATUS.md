@@ -7,7 +7,7 @@ _Last updated: 2026-10-04_
 
 | | |
 |---|---|
-| Backend tests | 44 passing (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
+| Backend tests | 64 passing, 1 skipped (real Docker sandbox test; runs once the image is built) (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
 | Live demo | verified: incident detected → awaiting approval in ~4 s; approve + deploy → verified + resolved in ~2 s |
 | AI mode on this machine | local LLM: Ollama + qwen2.5-coder:7b (on D:), via `backend/.env`; start it with `scripts\start-ollama.ps1` |
 | Evaluation (4 scenarios) | heuristic: 4/4 reach approval gate, RCA 3/3 · local LLM: 3/4, RCA 2/3 (AI patches fail validation; revert fallback rescues 2) — `docs/EVALUATION.md` |
@@ -25,21 +25,22 @@ _Last updated: 2026-10-04_
 - Deployment: preflight checks, fast-forward merge, verification of running commit + replay on production.
 - Audit trail; React dashboard; demo service + GitOps controller; documentation system.
 - Phase 2: local LLM (portable Ollama on D:), 4 bug scenarios, evaluation harness + results, dependency-overlap correlation signal, indentation-only edit repair, revert fallback after failed AI patches.
+- Phase 3: sign-in with roles (viewer/engineer/approver/admin), PBKDF2 passwords, hashed session tokens, login lockout, service token for machine clients, optional two-person approval, approver identity from the session; secret/PII redaction before prompting; fail-closed Docker sandbox for validation; admin CLI.
 
 ## Currently being worked on
-Nothing in progress. **Phase 2 (real AI + evaluation) is complete** — see `docs/EVALUATION.md`. Next suggested: compare with Claude, then Phase 3 (authentication, sandboxed validation, secret redaction).
+**Phase 3 — security hardening: done except the live Docker check.** Login + roles, service token, two-person rule, prompt redaction and the Docker sandbox are implemented and tested. Remaining: build the sandbox image and run the real-container test once Docker Desktop's disk image is moved to D: (`scripts\build-sandbox.ps1`). Details: `docs/logs/2026-10-04-06-phase3-security.md`.
 
 ## Known bugs
 - None open. Four bugs found during live testing were fixed (see `docs/logs/2026-10-04-03-…`).
 
 ## Known limitations
-- No authentication: anyone who can reach the API can approve (server binds to 127.0.0.1).
-- AI-generated code runs on the host during validation (separate process, timeouts) — no container sandbox.
+- No SSO/MFA (local accounts); login lockout is per username and in memory.
+- Validation runs on the host unless `AION_SANDBOX=docker` is set (the sandbox image must be built first).
 - Python stack traces only; logs-only detection with fixed thresholds; hand-tuned correlation weights.
 - Staging/production are local processes; replay covers GET/HEAD requests only.
 - Single worker thread; SQLite; no schema migrations (delete `workspace/aion.db` after model changes).
 - No automatic rollback.
-- Logs may contain sensitive data and are included in prompts when an external LLM is configured.
+- Prompt redaction is pattern-based (secrets, e-mails, phones, cards); names/addresses are not detected.
 Full list: `docs/ROADMAP.md`.
 
 ## Important technical decisions (summary — full reasoning in `docs/DECISIONS.md`)
@@ -47,8 +48,8 @@ Modular monolith (FastAPI + SQLite/SQLAlchemy + React/Vite) · in-process single
 
 ## What remains
 0. (Optional) Run the evaluation with Claude for a stronger-model comparison.
-1. Authentication and approver roles (optionally two-person approval).
-2. Container sandbox for validation; secret/PII redaction before prompting.
+1. ~~Authentication and approver roles~~ ✔ Phase 3 · ~~Container sandbox~~ ✔ (needs Docker) · ~~Redaction~~ ✔
+2. OIDC single sign-on + MFA for shared deployments.
 3. Real CI integration (GitHub Actions) and PR-based fixes.
 4. Rollback (manual one-click, then automatic on failed verification); canary deployments.
 5. Metrics-based detection; more languages (Java, Node.js).
@@ -61,8 +62,11 @@ Modular monolith (FastAPI + SQLite/SQLAlchemy + React/Vite) · in-process single
 # one-time
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
+# one-time: create your account (asks for a password)
+backend\.venv\Scripts\python -m aion.cli users add <your-name> --role admin
+
 # terminal 1
-cd backend; .venv\Scripts\python -m aion          # dashboard: http://127.0.0.1:8000
+cd backend; .venv\Scripts\python -m aion          # dashboard: http://127.0.0.1:8000 - sign in
 
 # terminal 2
 backend\.venv\Scripts\python demo\run_demo.py --fresh

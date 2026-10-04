@@ -9,3 +9,4 @@ Chronological record of meaningful milestones: what changed, how it was tested, 
 | 03 | 2026-10-04 | [Demo service, dashboard and first live end-to-end runs (4 bugs found and fixed)](2026-10-04-03-demo-dashboard-live-runs.md) |
 | 04 | 2026-10-04 | [Documentation and learning system](2026-10-04-04-documentation.md) |
 | 05 | 2026-10-04 | [Phase 2: local LLM on D:, scenarios, evaluation, fixes found by evaluation](2026-10-04-05-phase2-local-llm-and-evaluation.md) |
+| 06 | 2026-10-04 | [Phase 3: security — accounts & roles, two-person rule, prompt redaction, Docker sandbox](2026-10-04-06-phase3-security.md) |

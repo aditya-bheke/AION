@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: aion
+Version: 0.3.0
+Summary: AION - Autonomous Incident Observation & Navigation
+Requires-Python: >=3.10

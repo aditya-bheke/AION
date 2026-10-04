@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from aion.ai.context import failing_request_samples
+from aion.config import settings
 from aion.gitops.repo import GitError, GitRepo
 from aion.models import Approval, Deployment, Incident, PatchProposal, Service, ValidationRun
 
@@ -42,14 +43,18 @@ class DeployOutcome:
 
 
 def preflight(session: Session, incident: Incident, patch: PatchProposal) -> Approval:
-    approval = session.scalar(
+    approvals = session.scalars(
         select(Approval).where(Approval.incident_id == incident.id, Approval.patch_id == patch.id,
                                Approval.decision == "approved").order_by(Approval.id.desc())
-    )
-    if approval is None:
+    ).all()
+    if not approvals:
         raise DeploymentBlocked("No human approval recorded for this patch")
-    if approval.commit_sha != patch.commit_sha:
+    if any(a.commit_sha != patch.commit_sha for a in approvals):
         raise DeploymentBlocked("The approved commit does not match the patch commit (patch changed after approval)")
+    approvers = {a.approver for a in approvals}
+    if len(approvers) < settings.required_approvals:
+        raise DeploymentBlocked(f"{len(approvers)} of {settings.required_approvals} required distinct approvals")
+    approval = approvals[0]
     validation = session.scalar(select(ValidationRun).where(ValidationRun.patch_id == patch.id)
                                 .order_by(ValidationRun.id.desc()))
     if validation is None or validation.status != "passed":
@@ -57,9 +62,9 @@ def preflight(session: Session, incident: Incident, patch: PatchProposal) -> App
     return approval
 
 
-def deploy(session: Session, incident: Incident, service: Service, patch: PatchProposal,
+def deploy(session: Session, incident: Incident, service: Service, patch: PatchProposal, deployed_by: str,
            verify_timeout: float = 45.0) -> DeployOutcome:
-    approval = preflight(session, incident, patch)
+    preflight(session, incident, patch)
     repo = GitRepo(service.repo_path)
     if repo.current_branch() != service.production_branch:
         raise DeploymentBlocked(f"Production checkout is not on branch {service.production_branch!r}")
@@ -76,8 +81,11 @@ def deploy(session: Session, incident: Incident, service: Service, patch: PatchP
         raise DeploymentBlocked(f"Fast-forward merge failed: {exc}") from exc
 
     dep = Deployment(service_id=service.id, environment="production", version=f"aion-fix-incident-{incident.id}",
-                     commit_sha=patch.commit_sha, deployed_by=f"human:{approval.approver}", incident_id=incident.id,
-                     status="verifying", notes=f"Approved by {approval.approver}: {approval.comment}")
+                     commit_sha=patch.commit_sha, deployed_by=deployed_by, incident_id=incident.id,
+                     status="verifying", notes="Approved by " + "; ".join(
+                         f"{a.approver}" + (f" ({a.comment})" if a.comment else "")
+                         for a in session.scalars(select(Approval).where(Approval.patch_id == patch.id,
+                                                                         Approval.decision == "approved"))))
     session.add(dep)
     session.flush()
 

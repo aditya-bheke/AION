@@ -11,6 +11,7 @@ from aion.config import settings
 from aion.db import get_session
 from aion.models import AuditEvent, Incident, LogEvent, Service
 from aion.pipeline.worker import worker
+from aion.security import Principal, require_role
 
 router = APIRouter(prefix="/api", tags=["system"])
 
@@ -21,7 +22,7 @@ def health():
 
 
 @router.get("/system")
-def system_status(session: Session = Depends(get_session)):
+def system_status(session: Session = Depends(get_session), _: Principal = Depends(require_role("viewer"))):
     try:
         provider = get_provider(settings)
         provider_name, provider_error = (provider.name if provider else None), None
@@ -35,6 +36,9 @@ def system_status(session: Session = Depends(get_session)):
                       "min_count": settings.detection_min_count,
                       "baseline_seconds": settings.detection_baseline_seconds,
                       "spike_ratio": settings.detection_spike_ratio},
+        "security": {"required_approvals": settings.required_approvals, "sandbox": settings.sandbox,
+                     "redact_prompts": settings.redact_prompts,
+                     "service_token_configured": bool(settings.service_token)},
         "pipeline": {"auto_pipeline": settings.auto_pipeline, "max_patch_attempts": settings.max_patch_attempts,
                      "running_jobs": worker.busy_keys()},
         "counts": {"services": session.scalar(select(func.count(Service.id))),
@@ -44,7 +48,8 @@ def system_status(session: Session = Depends(get_session)):
 
 
 @router.get("/audit")
-def audit_log(incident_id: int | None = None, limit: int = 200, session: Session = Depends(get_session)):
+def audit_log(incident_id: int | None = None, limit: int = 200, session: Session = Depends(get_session),
+              _: Principal = Depends(require_role("viewer"))):
     q = select(AuditEvent).order_by(AuditEvent.id.desc()).limit(min(limit, 1000))
     if incident_id is not None:
         q = q.where(AuditEvent.incident_id == incident_id)

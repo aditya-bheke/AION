@@ -259,8 +259,19 @@ function ValidationTab({ data }) {
 function EvidenceTab({ data }) {
   const pack = data.rca?.evidence_pack;
   if (!pack) return <Card><Empty>No evidence pack yet.</Empty></Card>;
+  const redactions = Object.entries(pack.redactions || {});
   return (
     <>
+      <Card title="Privacy: redaction before the AI" subtitle="Secrets and personal data are masked before anything is sent to a model">
+        {pack.redactions === undefined ? (
+          <p className="muted">Redaction was disabled for this analysis (AION_REDACT_PROMPTS=false).</p>
+        ) : redactions.length ? (
+          <p>Masked before sending: {redactions.map(([kind, n]) => <code key={kind} className="chip">{kind} × {n}</code>)}
+            <span className="muted small"> — shown below as <code>[REDACTED:kind]</code>.</span></p>
+        ) : (
+          <p className="muted">Checked: no secrets or personal data found in this evidence.</p>
+        )}
+      </Card>
       <Card title="Evidence pack" subtitle={`Exactly what the analyzer received: ${pack.evidence.length} items, built from ${pack.stats.raw_warning_and_error_events_in_window} warning/error log lines`}>
         {pack.evidence.map((e) => (
           <details key={e.id} className="evidence-item">

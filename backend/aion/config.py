@@ -73,6 +73,20 @@ class Settings:
     test_timeout_seconds: int = field(default_factory=lambda: _int("AION_TEST_TIMEOUT", 180))
     staging_port: int = field(default_factory=lambda: _int("AION_STAGING_PORT", 8201))
 
+    # --- security ---
+    # Shared secret for machine clients (log shippers, CI, the demo driver). Required for
+    # POST /api/services, /api/deployments and /api/ingest/*. Empty = machine endpoints disabled.
+    service_token: str = field(default_factory=lambda: os.getenv("AION_SERVICE_TOKEN", ""))
+    session_hours: int = field(default_factory=lambda: _int("AION_SESSION_HOURS", 12))
+    password_iterations: int = field(default_factory=lambda: _int("AION_PASSWORD_ITERATIONS", 600_000))
+    # Distinct approvers needed before a patch is approved (2 = four-eyes principle).
+    required_approvals: int = field(default_factory=lambda: _int("AION_REQUIRED_APPROVALS", 1))
+    # Redact secrets/PII from everything sent to an LLM.
+    redact_prompts: bool = field(default_factory=lambda: _bool("AION_REDACT_PROMPTS", True))
+    # Where AI-generated code is executed during validation: "local" (subprocess) or "docker".
+    sandbox: str = field(default_factory=lambda: os.getenv("AION_SANDBOX", "local"))
+    sandbox_image: str = field(default_factory=lambda: os.getenv("AION_SANDBOX_IMAGE", "aion-sandbox:py310"))
+
     @property
     def worktrees_dir(self) -> Path:
         return self.workspace_dir / "worktrees"

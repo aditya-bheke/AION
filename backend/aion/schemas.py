@@ -34,9 +34,10 @@ class DeploymentIn(BaseModel):
 
 
 class DecisionIn(BaseModel):
-    approver: str = Field(min_length=2, max_length=100)
+    # The approver's identity comes from their login session, never from the request body.
     comment: str = Field(default="", max_length=2000)
 
 
-class ActorIn(BaseModel):
-    actor: str = Field(min_length=2, max_length=100)
+class LoginIn(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=500)

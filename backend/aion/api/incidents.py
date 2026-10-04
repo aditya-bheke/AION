@@ -16,9 +16,12 @@ from aion.models import (Approval, AuditEvent, CommitSuspect, Deployment, Incide
                          PatchProposal, RCAReport, Service, ValidationRun)
 from aion.pipeline.worker import enqueue_deploy, enqueue_pipeline, worker
 from aion.remediation.service import worktree_path
-from aion.schemas import ActorIn, DecisionIn
+from aion.config import settings
+from aion.schemas import DecisionIn
+from aion.security import Principal, require_role
 
-router = APIRouter(prefix="/api/incidents", tags=["incidents"])
+# Every incident endpoint requires a signed-in user; decisions need stronger roles.
+router = APIRouter(prefix="/api/incidents", tags=["incidents"], dependencies=[Depends(require_role("viewer"))])
 
 
 def _incident_or_404(session: Session, incident_id: int) -> Incident:
@@ -97,56 +100,76 @@ def incident_logs(incident_id: int, limit: int = 20, session: Session = Depends(
             "raw_events_in_window": sum(c["count"] for c in clusters)}
 
 
+def approvals_for(session: Session, patch: PatchProposal) -> list[Approval]:
+    """Approvals recorded for exactly this patch commit."""
+    return session.scalars(select(Approval).where(Approval.patch_id == patch.id, Approval.decision == "approved",
+                                                  Approval.commit_sha == patch.commit_sha)).all()
+
+
 @router.post("/{incident_id}/rerun")
-def rerun(incident_id: int, body: ActorIn, session: Session = Depends(get_session)):
+def rerun(incident_id: int, session: Session = Depends(get_session),
+          user: Principal = Depends(require_role("engineer"))):
     inc = _incident_or_404(session, incident_id)
     if inc.status != Status.DETECTED.value and Status(inc.status) not in RERUNNABLE_STATES:
         raise HTTPException(409, f"Cannot re-run the pipeline from state {inc.status!r}")
-    audit.record(session, "pipeline_rerun_requested", f"human:{body.actor}", incident_id=inc.id)
+    audit.record(session, "pipeline_rerun_requested", user.actor, incident_id=inc.id)
     session.commit()
     enqueue_pipeline(inc.id)
     return {"queued": True}
 
 
 @router.post("/{incident_id}/approve")
-def approve(incident_id: int, body: DecisionIn, session: Session = Depends(get_session)):
+def approve(incident_id: int, body: DecisionIn, session: Session = Depends(get_session),
+            user: Principal = Depends(require_role("approver"))):
     inc = _incident_or_404(session, incident_id)
     if inc.status != Status.AWAITING_APPROVAL.value:
         raise HTTPException(409, f"Only incidents awaiting approval can be approved (current: {inc.status})")
     patch = _latest_passed_patch(session, inc.id)
     if patch is None or not patch.commit_sha:
         raise HTTPException(409, "No validated patch to approve")
-    # The approval is bound to the exact commit SHA that was validated.
+    existing = approvals_for(session, patch)
+    if any(a.approver == user.name for a in existing):
+        raise HTTPException(409, "You have already approved this patch; a different approver is required")
+    # The approval is bound to the exact commit SHA that was validated, and to the signed-in user.
     session.add(Approval(incident_id=inc.id, patch_id=patch.id, commit_sha=patch.commit_sha, decision="approved",
-                         approver=body.approver, comment=body.comment))
-    transition(session, inc, Status.APPROVED, f"human:{body.approver}", patch_id=patch.id, commit=patch.commit_sha,
-               comment=body.comment)
-    return {"status": inc.status}
+                         approver=user.name, comment=body.comment))
+    session.flush()
+    count = len(existing) + 1
+    if count < settings.required_approvals:
+        audit.record(session, "approval_recorded", user.actor, incident_id=inc.id, patch_id=patch.id,
+                     commit=patch.commit_sha, comment=body.comment,
+                     progress=f"{count} of {settings.required_approvals} approvals")
+        return {"status": inc.status, "approvals": count, "required": settings.required_approvals}
+    transition(session, inc, Status.APPROVED, user.actor, patch_id=patch.id, commit=patch.commit_sha,
+               comment=body.comment, approvals=count)
+    return {"status": inc.status, "approvals": count, "required": settings.required_approvals}
 
 
 @router.post("/{incident_id}/deploy")
-def deploy(incident_id: int, body: ActorIn, session: Session = Depends(get_session)):
+def deploy(incident_id: int, session: Session = Depends(get_session),
+           user: Principal = Depends(require_role("approver"))):
     inc = _incident_or_404(session, incident_id)
     if inc.status != Status.APPROVED.value:
         raise HTTPException(409, f"Deployment requires an approved incident (current: {inc.status})")
-    transition(session, inc, Status.DEPLOYING, f"human:{body.actor}")
+    transition(session, inc, Status.DEPLOYING, user.actor)
     session.commit()
-    enqueue_deploy(inc.id)
+    enqueue_deploy(inc.id, user.actor)
     return {"status": inc.status}
 
 
 @router.post("/{incident_id}/reject")
-def reject(incident_id: int, body: DecisionIn, session: Session = Depends(get_session)):
+def reject(incident_id: int, body: DecisionIn, session: Session = Depends(get_session),
+           user: Principal = Depends(require_role("approver"))):
     inc = _incident_or_404(session, incident_id)
     patch = session.scalar(select(PatchProposal).where(PatchProposal.incident_id == inc.id)
                            .order_by(PatchProposal.id.desc()))
     try:
-        transition(session, inc, Status.REJECTED, f"human:{body.approver}", comment=body.comment)
+        transition(session, inc, Status.REJECTED, user.actor, comment=body.comment)
     except InvalidTransition as exc:
         raise HTTPException(409, str(exc))
     if patch and patch.commit_sha:
         session.add(Approval(incident_id=inc.id, patch_id=patch.id, commit_sha=patch.commit_sha, decision="rejected",
-                             approver=body.approver, comment=body.comment))
+                             approver=user.name, comment=body.comment))
     # Clean up the isolated worktrees of this incident (branches are kept for the record).
     svc = session.get(Service, inc.service_id)
     for p in session.scalars(select(PatchProposal).where(PatchProposal.incident_id == inc.id)):

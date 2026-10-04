@@ -71,3 +71,16 @@ def test_dependency_signal_finds_data_change_off_the_stack(tmp_path):
     top = result.suspects[0]
     assert top.commit.sha == culprit.sha
     assert any("imported by the failing code" in r for r in top.reasons)
+
+
+def test_remove_worktree_clears_stale_untracked_folder(demo_repo, tmp_path):
+    """A leftover folder from an earlier run must not block a new worktree at the same path."""
+    repo_dir, commits = demo_repo
+    stale = tmp_path / "worktrees" / "incident-1-a1"
+    (stale / "app").mkdir(parents=True)
+    (stale / "app" / "old.py").write_text("x = 1\n", encoding="utf-8")
+    repo = GitRepo(repo_dir)
+    repo.remove_worktree(stale)
+    assert not stale.exists()
+    repo.add_worktree(stale, "aion/incident-1-a1", commits[-1].sha)
+    assert (stale / "app" / "pricing.py").exists()

@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -69,12 +70,26 @@ def generate_logs(repo: Path, log_file: Path, trigger: list[list], trigger_count
     return [json.loads(line) for line in log_file.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def _viewer(client) -> dict:
+    """Create a throw-away viewer account in the temporary database and sign in."""
+    from aion.db import session_scope
+    from aion.security import create_user
+
+    password = secrets.token_urlsafe(16)
+    with session_scope() as s:
+        create_user(s, "eval-viewer", password, "viewer")
+    token = client.post("/api/auth/login", json={"username": "eval-viewer", "password": password}).json()["token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def run_scenario(name: str, mode: str) -> dict:
     sc = load_scenario(name)
     work = Path(tempfile.mkdtemp(prefix=f"aion-eval-{name}-"))
     settings.workspace_dir = work / "workspace"
     settings.database_url = f"sqlite:///{(work / 'aion.db').as_posix()}"
     settings.auto_pipeline = False
+    settings.service_token = secrets.token_urlsafe(24)  # the harness acts as the machine client
+    service = {"Authorization": f"Bearer {settings.service_token}"}
     settings.worktrees_dir.mkdir(parents=True, exist_ok=True)
     init_engine(settings.database_url)
     set_provider_override(None)  # reset the provider cache for this run
@@ -86,18 +101,19 @@ def run_scenario(name: str, mode: str) -> dict:
         commits = build_repo(repo, scenario=name)
         culprit = next((c.sha for c in commits if c.message.splitlines()[0] == sc.expected.get("culprit")), None)
         with TestClient(create_app(start_background=False)) as client:
-            client.post("/api/services", json={
+            client.post("/api/services", headers=service, json={
                 "name": "orders-service", "repo_path": str(repo),
                 "test_command": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
                 "run_command": ["{python}", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "{port}"],
             }).raise_for_status()
             for c in commits:
                 if c.deploy_version:
-                    client.post("/api/deployments", json={"service": "orders-service", "version": c.deploy_version,
+                    client.post("/api/deployments", headers=service, json={"service": "orders-service",
+                                                                          "version": c.deploy_version,
                                                           "commit_sha": c.sha,
                                                           "deployed_at": c.deployed_at.isoformat()}).raise_for_status()
             events = generate_logs(repo, work / "prod.log", sc.trigger)
-            ingest = client.post("/api/ingest/orders-service", json={"events": events}).json()
+            ingest = client.post("/api/ingest/orders-service", headers=service, json={"events": events}).json()
             incidents = ingest["new_incidents"]
             result["log_events"] = len(events)
             result["incidents_opened"] = len(incidents)
@@ -111,7 +127,7 @@ def run_scenario(name: str, mode: str) -> dict:
             started = time.monotonic()
             orchestrator.run_pipeline(incidents[0])
             result["pipeline_seconds"] = round(time.monotonic() - started, 1)
-            d = client.get(f"/api/incidents/{incidents[0]}").json()
+            d = client.get(f"/api/incidents/{incidents[0]}", headers=_viewer(client)).json()
 
         inc, rca = d["incident"], d["rca"]
         suspects = [s["commit_sha"] for s in d["suspects"]]

@@ -21,6 +21,7 @@ from aion import audit
 from aion.ai.context import build_evidence_pack, failing_request_samples
 from aion.ai.providers.base import LLMError
 from aion.ai.providers.factory import get_provider
+from aion.ai.redact import redact_pack
 from aion.ai.rca import RCAOutput, ground, run_heuristic_rca, run_llm_rca
 from aion.config import settings
 from aion.db import session_scope
@@ -28,7 +29,7 @@ from aion.gitops.correlation import DeploymentInfo, correlate
 from aion.gitops.repo import GitRepo
 from aion.lifecycle import Status, transition
 from aion.models import CommitSuspect, Deployment, Incident, LogEvent, PatchProposal, RCAReport, Service, ValidationRun, utcnow
-from aion.remediation.service import create_patch
+from aion.remediation.service import create_patch, worktree_path
 from aion.validation.runner import ValidationRunner, ValidationTarget
 
 log = logging.getLogger("aion.pipeline")
@@ -115,6 +116,11 @@ def _run(incident_id: int) -> None:
 
         # ---- Stage 2: root-cause analysis ---------------------------------------------
         pack = build_evidence_pack(session, incident, service, repo, corr)
+        if settings.redact_prompts:
+            # Secrets/PII are masked before the pack is shown to any model; the stored pack is
+            # exactly what the model saw, and `redactions` records what was masked.
+            pack, redactions = redact_pack(pack)
+            pack["redactions"] = redactions
         repo_files = set(repo.ls_files(corr.analysed_revision))
         if provider:
             try:
@@ -223,7 +229,7 @@ def _run(incident_id: int) -> None:
             return
 
 
-def run_deploy(incident_id: int) -> None:
+def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
     """Deploy the approved patch. Only reachable from state DEPLOYING (set by the human-approval API)."""
     from aion.deploy.deployer import DeploymentBlocked, deploy
 
@@ -238,7 +244,7 @@ def run_deploy(incident_id: int) -> None:
                 raise DeploymentBlocked(f"Incident is in state {incident.status!r}, not 'deploying'")
             if patch is None:
                 raise DeploymentBlocked("No validated patch found")
-            outcome = deploy(session, incident, service, patch)
+            outcome = deploy(session, incident, service, patch, deployed_by)
         except DeploymentBlocked as exc:
             audit.record(session, "deployment_blocked", "system:deployer", incident_id=incident_id, reason=str(exc))
             incident.pipeline_error = f"Deployment blocked: {exc}"
@@ -257,6 +263,9 @@ def run_deploy(incident_id: int) -> None:
                      commit=patch.commit_sha, message=outcome.message, checks=outcome.verification)
         if outcome.success:
             transition(session, incident, Status.RESOLVED, "system:deployer", deployment_id=outcome.deployment_id)
+            # The fix is on the production branch now; its isolated checkouts are no longer needed.
+            for p in session.scalars(select(PatchProposal).where(PatchProposal.incident_id == incident_id)):
+                GitRepo(service.repo_path).remove_worktree(worktree_path(service, incident_id, p.attempt))
         else:
             incident.pipeline_error = outcome.message
             transition(session, incident, Status.DEPLOY_FAILED, "system:deployer", reason=outcome.message)

@@ -16,6 +16,7 @@ from aion.logs.ingest import ingest_events
 from aion.models import Deployment, Service
 from aion.pipeline.worker import enqueue_pipeline
 from aion.schemas import DeploymentIn, IngestIn, ServiceIn
+from aion.security import Principal, require_role, require_service_or_admin
 
 router = APIRouter(prefix="/api", tags=["ingest"])
 
@@ -28,7 +29,8 @@ def _service_or_404(session: Session, name: str) -> Service:
 
 
 @router.post("/services")
-def register_service(body: ServiceIn, session: Session = Depends(get_session)):
+def register_service(body: ServiceIn, session: Session = Depends(get_session),
+                     client: Principal = Depends(require_service_or_admin)):
     if not GitRepo(body.repo_path).is_repo():
         raise HTTPException(422, f"repo_path {body.repo_path!r} is not a git repository")
     svc = session.scalar(select(Service).where(Service.name == body.name))
@@ -41,17 +43,18 @@ def register_service(body: ServiceIn, session: Session = Depends(get_session)):
             svc.collector_offset = 0
         setattr(svc, field, value)
     session.flush()
-    audit.record(session, "service_registered" if created else "service_updated", "system:api", service=svc.name)
+    audit.record(session, "service_registered" if created else "service_updated", client.actor, service=svc.name)
     return ser.service(svc)
 
 
 @router.get("/services")
-def list_services(session: Session = Depends(get_session)):
+def list_services(session: Session = Depends(get_session), _: Principal = Depends(require_role("viewer"))):
     return [ser.service(s) for s in session.scalars(select(Service).order_by(Service.name))]
 
 
 @router.post("/ingest/{service_name}")
-def ingest(service_name: str, body: IngestIn, session: Session = Depends(get_session)):
+def ingest(service_name: str, body: IngestIn, session: Session = Depends(get_session),
+           _: Principal = Depends(require_service_or_admin)):
     svc = _service_or_404(session, service_name)
     result = ingest_events(session, svc, body.events)
     session.commit()  # the pipeline runs on another thread: data must be committed first
@@ -63,7 +66,8 @@ def ingest(service_name: str, body: IngestIn, session: Session = Depends(get_ses
 
 
 @router.post("/deployments")
-def record_deployment(body: DeploymentIn, session: Session = Depends(get_session)):
+def record_deployment(body: DeploymentIn, session: Session = Depends(get_session),
+                      _: Principal = Depends(require_service_or_admin)):
     """Called by CI/CD (or the demo setup) whenever a version goes live."""
     svc = _service_or_404(session, body.service)
     repo = GitRepo(svc.repo_path)
@@ -86,7 +90,8 @@ def record_deployment(body: DeploymentIn, session: Session = Depends(get_session
 
 
 @router.get("/deployments")
-def list_deployments(service: str | None = None, session: Session = Depends(get_session)):
+def list_deployments(service: str | None = None, session: Session = Depends(get_session),
+                     _: Principal = Depends(require_role("viewer"))):
     q = select(Deployment).order_by(Deployment.deployed_at.desc())
     if service:
         q = q.where(Deployment.service_id == _service_or_404(session, service).id)

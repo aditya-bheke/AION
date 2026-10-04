@@ -17,7 +17,7 @@ from aion.gitops.repo import GitRepo
 from aion.main import create_app
 from aion.models import Incident
 from aion.pipeline import orchestrator
-from conftest import generate_service_logs
+from conftest import SERVICE_HEADERS, generate_service_logs, make_user
 
 
 @pytest.fixture()
@@ -25,12 +25,14 @@ def client(aion_env, monkeypatch):
     # Run deployments synchronously in tests instead of on the worker thread.
     monkeypatch.setattr("aion.api.incidents.enqueue_deploy", orchestrator.run_deploy)
     with TestClient(create_app(start_background=False)) as c:
+        # Default identity for reads and decisions: a signed-in approver.
+        c.headers.update(make_user(c, "aditya", "approver"))
         yield c
 
 
-def _setup(client, demo_repo, tmp_path):
+def _setup(client, demo_repo, tmp_path, mutate=None):
     repo_dir, commits = demo_repo
-    r = client.post("/api/services", json={
+    r = client.post("/api/services", headers=SERVICE_HEADERS, json={
         "name": "orders-service", "repo_path": str(repo_dir),
         "test_command": ["{python}", "-m", "pytest", "-q", "-p", "no:cacheprovider"],
         "run_command": ["{python}", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "{port}"],
@@ -38,11 +40,13 @@ def _setup(client, demo_repo, tmp_path):
     assert r.status_code == 200, r.text
     for c in commits:
         if c.deploy_version:
-            assert client.post("/api/deployments", json={
+            assert client.post("/api/deployments", headers=SERVICE_HEADERS, json={
                 "service": "orders-service", "version": c.deploy_version, "commit_sha": c.sha,
                 "deployed_at": c.deployed_at.isoformat()}).status_code == 200
     events = generate_service_logs(repo_dir, tmp_path / "prod.log")
-    r = client.post("/api/ingest/orders-service", json={"events": events})
+    if mutate:
+        mutate(events)
+    r = client.post("/api/ingest/orders-service", headers=SERVICE_HEADERS, json={"events": events})
     assert r.status_code == 200
     body = r.json()
     assert len(body["new_incidents"]) == 1
@@ -69,24 +73,23 @@ def test_heuristic_workflow_requires_human_approval(client, demo_repo, tmp_path)
     # Production has not changed: AION stops at the approval gate.
     git = GitRepo(repo_dir)
     assert git.rev_parse("main") == commits[-1].sha
-    assert client.post(f"/api/incidents/{incident_id}/deploy", json={"actor": "mallory"}).status_code == 409
+    assert client.post(f"/api/incidents/{incident_id}/deploy").status_code == 409
 
-    r = client.post(f"/api/incidents/{incident_id}/approve", json={"approver": "Aditya", "comment": "LGTM"})
+    r = client.post(f"/api/incidents/{incident_id}/approve", json={"comment": "LGTM"})
     assert r.status_code == 200 and r.json()["status"] == "approved"
-    r = client.post(f"/api/incidents/{incident_id}/deploy", json={"actor": "Aditya"})
+    r = client.post(f"/api/incidents/{incident_id}/deploy")
     assert r.status_code == 200
 
     detail = client.get(f"/api/incidents/{incident_id}").json()
     assert detail["incident"]["status"] == "resolved", detail["incident"]["pipeline_error"]
     assert git.rev_parse("main") == patch["commit_sha"]
     actions = [(a["actor"], a["action"]) for a in detail["audit"]]
-    assert ("human:Aditya", "status_changed") in actions
+    assert ("human:aditya", "status_changed") in actions
     assert any(a == "deployment_completed" for _, a in actions)
-    assert detail["deployments"][0]["deployed_by"] == "human:Aditya"
+    assert detail["deployments"][0]["deployed_by"] == "human:aditya"
 
     # A resolved incident cannot be approved or deployed again.
-    assert client.post(f"/api/incidents/{incident_id}/approve",
-                       json={"approver": "Aditya"}).status_code == 409
+    assert client.post(f"/api/incidents/{incident_id}/approve", json={}).status_code == 409
 
 
 class ScriptedLLM:
@@ -136,8 +139,15 @@ class ScriptedLLM:
             "risk_notes": "Clients sending invalid coupons now get 400 instead of 500."}))
 
 
+def _add_customer_pii(events):
+    """Make the failing requests carry personal data, as real query strings often do."""
+    for e in events:
+        if e.get("request") and "SUMMER23" in e["request"].get("query", ""):
+            e["request"]["query"] += "&email=priya.sharma@example.com"
+
+
 def test_llm_workflow_produces_validated_fix_with_regression_test(client, demo_repo, tmp_path):
-    repo_dir, commits, incident_id = _setup(client, demo_repo, tmp_path)
+    repo_dir, commits, incident_id = _setup(client, demo_repo, tmp_path, mutate=_add_customer_pii)
     buggy = next(c for c in commits if c.message.startswith("Support seasonal campaigns"))
     llm = ScriptedLLM(buggy.sha)
     set_provider_override(llm)
@@ -149,6 +159,10 @@ def test_llm_workflow_produces_validated_fix_with_regression_test(client, demo_r
     # The model received curated evidence, not raw logs.
     rca_prompt = llm.calls[0][1]
     assert "[TRACE-1]" in rca_prompt and f"[COMMIT-{buggy.sha[:7]}]" in rca_prompt and "[CODE-1]" in rca_prompt
+    # Personal data never reaches the model, and the redaction is recorded.
+    assert all("priya.sharma@example.com" not in prompt for _, prompt in llm.calls)
+    assert "[REDACTED:email]" in rca_prompt
+    assert detail["rca"]["evidence_pack"]["redactions"]["email"] >= 1
     assert detail["rca"]["suspected_commit"] == buggy.sha  # short SHA expanded by grounding
     patch = detail["patches"][-1]
     assert patch["strategy"] == "llm_edit"
@@ -182,7 +196,7 @@ def test_failed_validation_never_reaches_approval(client, demo_repo, tmp_path, m
     assert detail["incident"]["status"] == "validation_failed"
     assert len(detail["patches"]) == 2  # one repair attempt with failure feedback
     assert "failed" in detail["validations"][-1]["steps"][0]["status"]
-    assert client.post(f"/api/incidents/{incident_id}/approve", json={"approver": "Aditya"}).status_code == 409
+    assert client.post(f"/api/incidents/{incident_id}/approve", json={}).status_code == 409
     with session_scope() as s:
         assert s.scalar(select(Incident.status).where(Incident.id == incident_id)) == "validation_failed"
 

@@ -28,6 +28,7 @@ import time
 from pathlib import Path
 
 import httpx
+from dotenv import dotenv_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from demo_repo import DEFAULT_SCENARIO, build_repo, list_scenarios, load_scenario  # noqa: E402
@@ -38,6 +39,15 @@ REPO = WORKSPACE / "orders-service"
 LOG_FILE = WORKSPACE / "logs" / "orders-service.log"
 PROD_PORT = 8101
 PROD_URL = f"http://127.0.0.1:{PROD_PORT}"
+
+
+def _service_headers() -> dict:
+    """The demo acts as a machine client (CI + log shipper): it uses AION's service token."""
+    token = os.getenv("AION_SERVICE_TOKEN") or dotenv_values(ROOT / "backend" / ".env").get("AION_SERVICE_TOKEN")
+    if not token:
+        sys.exit("[demo] AION_SERVICE_TOKEN is not set. Create one: "
+                 "backend\\.venv\\Scripts\\python -m aion.cli service-token --write  (then restart AION)")
+    return {"Authorization": f"Bearer {token}"}
 
 
 def setup(aion: str, fresh: bool, scenario: str) -> None:
@@ -52,7 +62,7 @@ def setup(aion: str, fresh: bool, scenario: str) -> None:
         register(aion)
         for c in commits:
             if c.deploy_version:
-                r = httpx.post(f"{aion}/api/deployments", json={
+                r = httpx.post(f"{aion}/api/deployments", headers=_service_headers(), json={
                     "service": "orders-service", "version": c.deploy_version, "commit_sha": c.sha,
                     "deployed_at": c.deployed_at.isoformat(), "deployed_by": "ci-pipeline"})
                 r.raise_for_status()
@@ -63,7 +73,7 @@ def setup(aion: str, fresh: bool, scenario: str) -> None:
 
 
 def register(aion: str) -> None:
-    r = httpx.post(f"{aion}/api/services", json={
+    r = httpx.post(f"{aion}/api/services", headers=_service_headers(), json={
         "name": "orders-service",
         "repo_path": str(REPO),
         "production_branch": "main",

@@ -1,0 +1,15 @@
+# Makes the `aion` package importable from anywhere once installed into the virtualenv:
+#   backend\.venv\Scripts\python -m pip install -e backend
+# ("editable" install: the venv points at this source folder, so code changes apply immediately.)
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aion"
+version = "0.3.0"
+description = "AION - Autonomous Incident Observation & Navigation"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["aion*"]

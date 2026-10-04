@@ -6,7 +6,9 @@ keeps the behaviour transparent and easy to explain/debug.
 """
 from __future__ import annotations
 
+import os
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -131,6 +133,10 @@ class GitRepo:
 
     def remove_worktree(self, path: Path) -> None:
         self.git("worktree", "remove", "--force", str(path), check=False)
+        if path.exists():
+            # A stale folder git does not track (e.g. the repository was rebuilt, or an
+            # earlier database reused the same incident id). Only AION-owned paths get here.
+            shutil.rmtree(path, onerror=_force_remove)
         self.git("worktree", "prune", check=False)
 
     def commit_all(self, cwd: Path, message: str) -> str:
@@ -146,3 +152,9 @@ class GitRepo:
 
     def merge_ff_only(self, branch: str) -> None:
         self.git("merge", "--ff-only", branch)
+
+
+def _force_remove(func, path, _exc):
+    # Git marks object files read-only on Windows; make them writable and retry.
+    os.chmod(path, 0o700)
+    func(path)

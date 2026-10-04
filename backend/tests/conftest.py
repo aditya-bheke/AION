@@ -15,8 +15,12 @@ sys.path.insert(0, str(REPO_ROOT / "demo"))
 
 from aion.ai.providers.factory import set_provider_override  # noqa: E402
 from aion.config import settings  # noqa: E402
-from aion.db import init_engine  # noqa: E402
+from aion.db import init_engine, session_scope  # noqa: E402
+from aion.security import create_user, reset_login_throttle  # noqa: E402
 from demo_repo import build_repo  # noqa: E402
+
+
+SERVICE_TOKEN = "test-service-token-0123456789"
 
 
 @pytest.fixture()
@@ -25,11 +29,27 @@ def aion_env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "workspace_dir", tmp_path / "workspace")
     monkeypatch.setattr(settings, "database_url", f"sqlite:///{(tmp_path / 'aion.db').as_posix()}")
     monkeypatch.setattr(settings, "auto_pipeline", False)
+    monkeypatch.setattr(settings, "service_token", SERVICE_TOKEN)
+    monkeypatch.setattr(settings, "password_iterations", 1000)  # fast hashing in tests only
+    monkeypatch.setattr(settings, "required_approvals", 1)
     settings.worktrees_dir.mkdir(parents=True, exist_ok=True)
     init_engine(settings.database_url)
     set_provider_override(None)
+    reset_login_throttle()
     yield tmp_path
     set_provider_override(None)
+
+
+def make_user(client, username: str, role: str, password: str = "correct horse battery") -> dict:
+    """Create a user directly in the DB, sign in through the API, return auth headers."""
+    with session_scope() as s:
+        create_user(s, username, password, role)
+    r = client.post("/api/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+SERVICE_HEADERS = {"Authorization": f"Bearer {SERVICE_TOKEN}"}
 
 
 @pytest.fixture()

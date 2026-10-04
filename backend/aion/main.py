@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
-from aion.api import incidents, ingest, system
+from aion.api import auth, incidents, ingest, system
 from aion.config import REPO_ROOT, settings
 from aion.db import init_engine, session_scope
 from aion.lifecycle import InvalidTransition, Status, transition
@@ -62,6 +62,7 @@ def create_app(start_background: Optional[bool] = None) -> FastAPI:
     async def _invalid_transition(_: Request, exc: InvalidTransition):
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    app.include_router(auth.router)
     app.include_router(system.router)
     app.include_router(ingest.router)
     app.include_router(incidents.router)

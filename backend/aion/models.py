@@ -199,6 +199,33 @@ class Approval(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class User(Base):
+    """A person who can sign in to AION. Roles: viewer < engineer < approver < admin."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True)
+    display_name: Mapped[str] = mapped_column(String(200), default="")
+    role: Mapped[str] = mapped_column(String(20))
+    password_hash: Mapped[str] = mapped_column(String(300))
+    active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class UserSession(Base):
+    """A login session. Only a SHA-256 hash of the bearer token is stored."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+    expires_at: Mapped[datetime]
+    revoked: Mapped[bool] = mapped_column(default=False)
+
+
 class AuditEvent(Base):
     """Append-only audit trail. No API exists to update or delete rows."""
 

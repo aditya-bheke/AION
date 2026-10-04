@@ -28,7 +28,7 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-20](#d-20-bounded-generate-validate-repair-loop) | Bounded generate-validate-repair loop | Program repair | Accepted |
 | [D-21](#d-21-human-approval-as-a-state-machine-gate-bound-to-a-commit-sha) | Human approval as a state-machine gate bound to a commit SHA | Safety | Accepted |
 | [D-22](#d-22-gitops-style-deployment-with-post-deploy-verification) | GitOps-style deployment + post-deploy verification | Deployment | Accepted |
-| [D-23](#d-23-no-authentication-in-the-mvp) | No authentication in the MVP | Security | Accepted (known risk) |
+| [D-23](#d-23-no-authentication-in-the-mvp) | No authentication in the MVP | Security | Superseded by D-31 |
 | [D-24](#d-24-append-only-audit-table) | Append-only audit table | Audit | Accepted |
 | [D-25](#d-25-a-real-demo-service-with-synthetic-git-history) | Real demo service with synthetic git history | Demo | Accepted |
 | [D-26](#d-26-intentionally-not-in-the-mvp) | Intentionally NOT in the MVP | Scope | Accepted |
@@ -36,6 +36,9 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-28](#d-28-local-llm-via-portable-ollama-on-d-with-a-12k-context-window) | Local LLM via portable Ollama on D:, 12k context | AI / Infrastructure | Accepted |
 | [D-29](#d-29-indentation-only-repair-of-ai-edits) | Indentation-only repair of AI edits | Program repair | Accepted |
 | [D-30](#d-30-revert-fallback-after-failed-ai-patches) | Revert fallback after failed AI patches | Program repair | Accepted |
+| [D-31](#d-31-local-accounts-with-roles-hashed-session-tokens-and-a-service-token) | Local accounts, roles, hashed session tokens, service token | Security | Accepted |
+| [D-32](#d-32-redact-secrets-and-personal-data-before-prompting) | Redact secrets and personal data before prompting | Security / AI | Accepted |
+| [D-33](#d-33-fail-closed-docker-sandbox-for-validating-ai-written-code) | Fail-closed Docker sandbox for AI-written code | Security / Validation | Accepted |
 
 ---
 
@@ -596,7 +599,7 @@ In GitOps, the production branch *is* the desired state and a controller (Argo C
 # Decision: D-23 No authentication in the MVP
 
 Date: 2026-10-04
-Status: Accepted (known risk)
+Status: Superseded by D-31 (Phase 3)
 Area: Security
 
 ## Context
@@ -774,3 +777,100 @@ Rollback-first is standard incident practice: restore service, then fix properly
 
 ## Future Reconsideration
 Offer the revert alongside a failed-but-promising AI fix so the reviewer can choose.
+
+---
+
+# Decision: D-31 Local accounts with roles, hashed session tokens and a service token
+
+Date: 2026-10-04
+Status: Accepted (supersedes D-23)
+Area: Security
+
+## Context
+In the MVP anyone who could reach the API could approve and deploy by typing a name. Human approval is only meaningful if the human is authenticated and authorised.
+
+## Options Considered
+- A. External identity provider (OIDC: Keycloak, Azure AD, Google) — the production answer, but needs infrastructure and accounts.
+- B. JWTs (stateless signed tokens) — cannot be revoked before expiry without extra machinery.
+- C. Local user accounts, salted PBKDF2 password hashes, random opaque session tokens stored only as SHA-256 hashes, role-based access control; a separate shared service token for machine clients.
+
+## Decision
+C (`aion/security.py`, `api/auth.py`, `aion/cli.py`).
+- Roles (ordered): **viewer** (read) < **engineer** (+ re-run investigations) < **approver** (+ approve / reject / deploy) < **admin** (+ machine endpoints). Endpoints declare `Depends(require_role(...))`.
+- Passwords: PBKDF2-HMAC-SHA256, 16-byte random salt, 600,000 iterations (OWASP), constant-time comparison; minimum 10 characters; set only via the CLI (`python -m aion.cli users add`, interactive, not echoed).
+- Sessions: 256-bit random bearer token returned once; the DB stores only its SHA-256; expiry 12 h; logout revokes; disabling a user kills its sessions immediately.
+- Brute force: 5 failed logins per username in 15 minutes → HTTP 429. Unknown usernames are checked against a dummy hash of equal cost (no timing oracle for which users exist).
+- Approver identity comes from the session, never from the request body; audit actor = `human:<username>`; the deployment record names the person who pressed deploy.
+- Optional **two-person rule** (`AION_REQUIRED_APPROVALS=2`): distinct approvers; the same person cannot approve twice; the deployer re-checks the count independently.
+- Machine clients (log shippers, CI, demo) use `AION_SERVICE_TOKEN` for `POST /api/services | /api/deployments | /api/ingest`; user accounts (except admin) cannot call them, and the service token cannot approve.
+- The dashboard keeps the token in `sessionStorage` (cleared when the tab closes).
+
+## Reason
+Demonstrable without external infrastructure, standard-library only, and every mechanism is an industry pattern that can be explained (salted slow hashing, hashed opaque tokens, RBAC, separation of duties).
+
+## Trade-offs
+− No SSO/MFA; user management via CLI only. `sessionStorage` is readable by scripts on the page (mitigated: the dashboard loads no third-party scripts).
+− Lockout is in memory (resets on restart) and per username (not per IP).
+
+## Future Reconsideration
+OIDC login (MFA comes with the identity provider) for any shared deployment; per-IP rate limiting at a reverse proxy.
+
+---
+
+# Decision: D-32 Redact secrets and personal data before prompting
+
+Date: 2026-10-04
+Status: Accepted
+Area: Security / AI
+
+## Context
+Evidence packs contain log text, request query strings, stack traces, diffs and source code. With a hosted LLM this leaves the machine. Logs routinely contain e-mails, phone numbers, tokens and sometimes passwords or card numbers.
+
+## Options Considered
+- A. Use only local models (avoids the transfer, not the risk in general; limits model choice).
+- B. ML-based PII detection (e.g. Presidio) — heavier dependency, harder to explain.
+- C. Deterministic pattern-based redaction with two profiles, applied to everything sent to the model, with counts recorded.
+
+## Decision
+C (`aion/ai/redact.py`).
+- **log** profile (log templates, error messages, request queries, test output): private keys, JWTs, bearer tokens, known API-key formats (AWS, GitHub, OpenAI, Anthropic, Slack, Google), values of `password=` / `secret=` / `api_key=` style pairs (key kept, value masked), e-mails, Indian phone numbers, Luhn-valid card numbers.
+- **code** profile (diffs, source, tests): only the high-confidence secret formats — broad PII patterns would alter code that the model must quote exactly in search/replace edits.
+- Git SHAs, order ids and amounts are deliberately not matched (tested).
+- The stored evidence pack is the redacted one (exactly what the model saw) with `redactions` counts, shown in the dashboard. `AION_REDACT_PROMPTS=true` by default.
+
+## Trade-offs
+− Pattern-based: misses unusual formats (names, addresses). False positives on 10-digit numbers starting 6–9 are possible.
+− A secret hard-coded in a file being edited is masked, so an edit touching that exact line may fail to apply (a safe failure).
+
+## Future Reconsideration
+An ML PII detector for free text; per-service custom patterns.
+
+---
+
+# Decision: D-33 Fail-closed Docker sandbox for validating AI-written code
+
+Date: 2026-10-04
+Status: Accepted
+Area: Security / Validation
+
+## Context
+Validation executes code written by an AI (patches and tests) — on the host in the MVP. A wrong or manipulated patch could read files, use the network or exhaust resources.
+
+## Options Considered
+- A. Keep host subprocesses (timeouts only).
+- B. A full virtual machine per validation — strong but slow and heavy.
+- C. A container per command / per staging instance with OS-level restrictions; selectable via `AION_SANDBOX`.
+
+## Decision
+C (`aion/validation/sandbox.py`, `sandbox/Dockerfile`, `scripts/build-sandbox.ps1`). `ValidationRunner` talks only to a `Sandbox` interface. `LocalSandbox` keeps the old behaviour; `DockerSandbox` runs every step with `--network none`, the source mounted **read-only** and copied into a tmpfs, a `--read-only` root filesystem, non-root `--user 1000:1000`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--memory 512m --cpus 1 --pids-limit 256`, and removes the container afterwards. Because there is no network, staging health checks and the request replay run **inside** the container (`docker exec` with a standard-library client). **Fail-closed**: if Docker is selected but unavailable, validation fails with a clear message; it never falls back to the host.
+
+## Reason
+Containers give meaningful isolation (filesystem, network, privileges, resources) with about a second of overhead per step — appropriate for running untrusted code on a developer machine or CI runner.
+
+## Trade-offs
+− Containers share the host kernel (weaker than a VM).
+− The image must contain the service's dependencies (here: matching the demo service); real deployments build one image per service.
+− The default remains `local` so the project runs without Docker; the documentation recommends `docker`.
+
+## Future Reconsideration
+gVisor/Firecracker for kernel-level isolation; per-service images built from each service's own Dockerfile; validation on a separate CI runner.

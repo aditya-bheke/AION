@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, Optional
 
@@ -21,6 +22,7 @@ from sqlalchemy.orm import Session
 from aion import audit
 from aion.ai.patcher import PatchOutput, build_patch_prompt, generate_llm_patch
 from aion.ai.providers.base import LLMError, LLMProvider
+from aion.ai.redact import redact_text
 from aion.ai.rca import RCAOutput
 from aion.config import settings
 from aion.gitops.repo import GitError, GitRepo
@@ -105,13 +107,22 @@ def create_patch(session: Session, incident: Incident, service: Service, rca: RC
             files = _files_for_llm(repo, base, rca, pack)
             if not files:
                 raise PatchApplyError("No editable source files were identified for the fix")
-            prompt = build_patch_prompt(pack, rca, files, _tests_for_llm(repo, base, files), failing_requests, feedback)
+            tests = _tests_for_llm(repo, base, files)
+            redactions: Counter = Counter()
+            if settings.redact_prompts:
+                files = {p: redact_text(c, "code", redactions) for p, c in files.items()}
+                tests = {p: redact_text(c, "code", redactions) for p, c in tests.items()}
+                failing_requests = [{k: redact_text(v, "log", redactions) if isinstance(v, str) else v
+                                     for k, v in r.items()} for r in failing_requests]
+                feedback = redact_text(feedback, "log", redactions) if feedback else feedback
+            prompt = build_patch_prompt(pack, rca, files, tests, failing_requests, feedback)
             result = generate_llm_patch(provider, prompt)
             out: PatchOutput = result.output
             proposal.rationale = f"{out.rationale}\n\nRisk notes: {out.risk_notes}"
             proposal.edits = [e.model_dump() for e in out.edits] + [
                 {"path": nf.path, "new_file": True, "content": nf.content} for nf in out.new_test_files]
-            proposal.usage = dict(result.usage, latency_ms=result.latency_ms, attempts=result.attempts)
+            proposal.usage = dict(result.usage, latency_ms=result.latency_ms, attempts=result.attempts,
+                                  redactions=dict(redactions))
             repair_notes: list[str] = []
             apply_edits(wt, out.edits, out.new_test_files, set(repo.ls_files(base)), repair_notes)
             if repair_notes:

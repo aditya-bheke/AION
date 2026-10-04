@@ -8,17 +8,18 @@ Logs ─► Detection ─► Dedup ─► Git/deployment correlation ─► Root
      ─► 🔒 HUMAN APPROVAL ─► Production deployment ─► Verification ─► Audit trail
 ```
 
-AI may investigate, analyse, propose, validate and prepare. **Only a human can approve production deployment**, and the approval is bound to the exact commit that was validated.
+AI may investigate, analyse, propose, validate and prepare. **Only a signed-in human with the approver role can approve production deployment** (optionally two different approvers), and the approval is bound to the exact commit that was validated. Secrets and personal data are redacted before anything reaches an LLM, and AI-written code can be validated in an isolated Docker sandbox.
 
 ## Quick start (Windows / PowerShell)
 
 Requirements: Python 3.10+, Node.js 18+, Git.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1      # venv, dependencies, dashboard build
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1      # venv, dependencies, dashboard build, service token
+backend\.venv\Scripts\python -m aion.cli users add <your-name> --role admin   # your sign-in account
 
 # Terminal 1 — AION
-cd backend; .venv\Scripts\python -m aion                          # http://127.0.0.1:8000  (API docs: /docs)
+cd backend; .venv\Scripts\python -m aion                          # http://127.0.0.1:8000 - sign in (API docs: /docs)
 
 # Terminal 2 — demo service in "production" + realistic traffic; bug triggers after 45 s
 backend\.venv\Scripts\python demo\run_demo.py --fresh
@@ -28,7 +29,7 @@ Watch the incident appear in the dashboard, review it, approve, deploy. Full dem
 
 **AI mode:** without configuration AION runs a clearly labelled deterministic analyzer and proposes a `git revert` of the suspect commit. To enable LLM root-cause analysis and AI-written fixes, copy `backend/.env.example` to `backend/.env` and set `ANTHROPIC_API_KEY` (Claude, default model `claude-opus-5-5`) or an OpenAI-compatible endpoint such as LM Studio / Ollama.
 
-**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (44 tests, including full end-to-end workflow tests).
+**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (65 tests, including full end-to-end workflow and security tests).
 
 **Evaluation:** `backend\.venv\Scripts\python evaluation\run_eval.py [--mode llm]` runs 4 bug scenarios through the real pipeline — results in [docs/EVALUATION.md](docs/EVALUATION.md).
 

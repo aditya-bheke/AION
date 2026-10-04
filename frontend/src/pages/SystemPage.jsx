@@ -32,6 +32,14 @@ export default function SystemPage({ system }) {
             <span>Spike ratio</span><span>{system.detection.spike_ratio}×</span>
           </div>
         </Card>
+        <Card title="Security">
+          <div className="kv">
+            <span>Approvals required</span><span>{system.security.required_approvals}{system.security.required_approvals > 1 ? " (two-person rule)" : ""}</span>
+            <span>Validation sandbox</span><span>{system.security.sandbox === "docker" ? "Docker (isolated)" : "local subprocess (not isolated)"}</span>
+            <span>Prompt redaction</span><span>{system.security.redact_prompts ? "on" : "off"}</span>
+            <span>Service token</span><span>{system.security.service_token_configured ? "configured" : "missing — log ingest disabled"}</span>
+          </div>
+        </Card>
         <Card title="Pipeline">
           <div className="kv">
             <span>Automatic investigation</span><span>{system.pipeline.auto_pipeline ? "on" : "off"}</span>

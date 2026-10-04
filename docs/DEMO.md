@@ -18,6 +18,17 @@ Or simply run `scripts\setup.ps1`, which does steps 1–2.
 
 Requirements: Python 3.10+, Node 18+, Git.
 
+## Accounts (one time)
+
+AION requires sign-in. Create your first account (you are asked for a password, min 10 characters):
+```powershell
+backend\.venv\Scripts\python -m aion.cli users add aditya --role admin --name "Aditya"
+backend\.venv\Scripts\python -m aion.cli users add riya --role approver      # optional, e.g. for the two-person rule
+backend\.venv\Scripts\python -m aion.cli users list
+```
+Roles: **viewer** (read) · **engineer** (+ re-run investigations) · **approver** (+ approve / reject / deploy) · **admin** (everything).
+The demo and log shippers authenticate with the **service token** in `backend\.env` (`AION_SERVICE_TOKEN`), created by `scripts\setup.ps1` or `python -m aion.cli service-token --write`.
+
 ## Run the demo (two terminals)
 
 **Terminal 1 — AION:**
@@ -25,7 +36,7 @@ Requirements: Python 3.10+, Node 18+, Git.
 cd backend
 .venv\Scripts\python -m aion
 ```
-Open **http://127.0.0.1:8000** (dashboard) and **http://127.0.0.1:8000/docs** (interactive API docs).
+Open **http://127.0.0.1:8000** and sign in. (Interactive API docs: http://127.0.0.1:8000/docs.)
 
 **Terminal 2 — the monitored service + traffic:**
 ```powershell
@@ -69,7 +80,7 @@ Each scenario runs in an isolated temporary workspace through the real pipeline;
 8. **Validation tab** — five steps with timings; expand outputs; the replay table shows each failing production request now returning non-5xx and baseline requests unchanged.
 9. **Approval gate** — the yellow banner **"Human approval required"**. Show that deploying is impossible: in a terminal,
    `curl -X POST http://127.0.0.1:8000/api/incidents/1/deploy -H "Content-Type: application/json" -d "{\"actor\":\"x\"}"` → **409**.
-   Then type your name + comment and click **Approve patch**.
+   Then add a comment and click **Approve patch** — the approval is recorded under your signed-in account. (Sign in as a *viewer* to show that the buttons are not offered, and the API returns 403.)
 10. **Deploy** — click **Deploy to production**. Terminal 2 prints `[controller] production branch moved … redeploying`. Within seconds the banner turns green: **"Resolved — fix deployed and verified in production"**. The traffic counter's 5xx count stops increasing.
 11. **Audit trail tab** — the full story with actors: `system:detector`, `system:correlator`, `ai:…`/`system:heuristic-analyzer`, `system:validator`, `human:<you>`, `system:deployer`.
 12. **Prove it in git** (optional): `git -C workspace/orders-service log --oneline -3` shows the AION fix commit on `main`.
@@ -112,3 +123,11 @@ cd backend
 | Dashboard shows `{"detail":"Not Found"}` at `/` | build the frontend (`npm run build`) or use `npm run dev` on port 5173 |
 | Incident stuck in `error` after restarting AION | expected: in-flight jobs are interrupted on restart; click *Re-run investigation* |
 | `deploy_failed: Production did not come up on the new commit` | the demo terminal (controller) is not running |
+
+## Security settings (Phase 3)
+
+| Setting in `backend\.env` | Effect |
+|---|---|
+| `AION_REQUIRED_APPROVALS=2` | two-person rule: two different approvers before deploy |
+| `AION_SANDBOX=docker` | AI-written code is validated in isolated containers (build the image first: `scripts\build-sandbox.ps1`, Docker Desktop running) |
+| `AION_REDACT_PROMPTS=true` (default) | secrets and personal data masked before anything reaches an LLM — see the *What the AI saw* tab |
