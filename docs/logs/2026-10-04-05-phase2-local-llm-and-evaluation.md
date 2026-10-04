@@ -1,4 +1,4 @@
-# 05 — Phase 2 (in progress): local LLM, scenarios and evaluation
+# 05 — Phase 2: local LLM, scenarios and evaluation
 
 **Date:** 2026-10-04
 **Task:** Run AION with a real (local, free) LLM; add more bug scenarios; build an evaluation harness.
@@ -15,7 +15,10 @@
 | Heuristic, first run | 4/4 | 3/4 | 2/3 (supplier-feed wrong, low confidence 0.32, validation blocked the bad revert) |
 | LLM (qwen2.5-coder:7b), first run | 4/4 | 1/4 | 2/3 — **every LLM patch failed the syntax check** |
 | Heuristic, after fixes below | 4/4 | **4/4** | **3/3** |
-| LLM, after fixes | *not yet run* | | |
+| LLM, + indentation repair (incl. mid-line matches) | 4/4 | 1/4 | 2/3 — patches compile; logic/tests wrong |
+| LLM, 3 attempts | 4/4 | 1/4 | 2/3 — more attempts don't help a 7B model |
+| **LLM, + revert fallback (final)** | 4/4 | **3/4** | 2/3 |
+| **Heuristic (final)** | 4/4 | **4/4** | 3/3 |
 
 ## Problems found by the evaluation, and generic fixes
 1. **Small model lost relative indentation in `replace` blocks** (correct intent, invalid Python). → Indentation-only repair in `remediation/apply.py`: only when an exact edit turns a parseable file into a non-parseable one, re-indented variants are tried and the first that parses is kept; recorded in the patch rationale ("Applied by AION: …"). Tests added.
@@ -28,7 +31,16 @@ Note: on supplier-feed the culprit now ranks first only narrowly (0.40 vs 0.40, 
 ## Tests
 41 backend tests passing.
 
-## Status / next steps (resume here)
-1. Start Ollama: `powershell -ExecutionPolicy Bypass -File scripts\start-ollama.ps1` (keep open).
-2. Re-run `backend\.venv\Scripts\python evaluation\run_eval.py --mode llm` (~6–8 min) and inspect failures (`patch_diff`, `failed_step` in the JSON).
-3. Write `docs/EVALUATION.md` (method + before/after tables), update PROJECT_STATUS, notes (local), and run the live demo once in LLM mode.
+## Second session (after the pause)
+5. **The indentation repair still missed the model's real output**: it quoted `search` *without* the line's leading spaces, so the match began mid-line and the repair indented the first line twice. → handled (`first_line_prefixed`); test reproduces the model's exact output.
+6. With compiling patches, failures became **semantic** (wrong regression-test inputs, incomplete `None` guard, "fix" that prices a product at 0) — all caught by validation. A third AI attempt did not help.
+7. → **Revert fallback** (D-30): after all AI attempts fail, revert the RCA's suspected commit as a last, clearly labelled attempt, still validated and human-approved. Local-LLM mode: 1/4 → 3/4.
+8. supplier-feed with the 7B model: RCA described the symptom but named no commit (deterministic correlation had the culprit at #1) → no fallback, `validation_failed` → human. Reported as-is.
+
+Evaluation write-up: `docs/EVALUATION.md` (D-27…D-30). Tests: 44 passing.
+
+## Status
+Phase 2 complete.
+
+## Next step
+Optional: run the same evaluation with Claude (`ANTHROPIC_API_KEY`) for a stronger-model comparison; then Phase 3 (authentication, sandboxed validation, secret redaction).

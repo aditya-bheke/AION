@@ -8,26 +8,26 @@
     "incidents_opened": 1,
     "expected_incident": true,
     "detection_correct": true,
-    "pipeline_seconds": 4.3,
+    "pipeline_seconds": 5.1,
     "title_detected": "ZeroDivisionError: float division by zero",
     "exception_correct": true,
     "culprit_rank": 1,
     "top_suspects": [
       {
-        "commit": "d39d875",
+        "commit": "b034e23",
         "score": 1.0,
         "message": "Show item count and average item price on order totals",
         "reasons": [
           "Last modified the failing line app/pricing.py:28 (in compute_total) [git blame]",
           "Modified 4 line(s) of function compute_total() in app/pricing.py [git blame]",
-          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:12 UTC)",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:56 UTC, the last deployment before errors began (16:56:19 UTC)",
           "Touched file(s) in the stack trace: app/pricing.py",
           "Commit message mentions: order"
         ],
         "is_culprit": true
       },
       {
-        "commit": "e66bb59",
+        "commit": "93ef071",
         "score": 0.375,
         "message": "Add coupon support to order totals",
         "reasons": [
@@ -41,7 +41,7 @@
         "is_culprit": false
       },
       {
-        "commit": "682ea29",
+        "commit": "ec43f0a",
         "score": 0.325,
         "message": "Initial orders service: catalog, order lookup and JSON logging",
         "reasons": [
@@ -57,9 +57,15 @@
     ],
     "rca_suspected_correct": true,
     "rca_confidence": 0.8,
-    "rca_root_cause": "ZeroDivisionError: float division by zero at app/pricing.py:28 in compute_total(). The failing code was most recently changed by commit d39d875 \"Show item count and average item price on order totals\" by Rahul Verma, shipped in deployment v1.4.0.",
+    "rca_root_cause": "ZeroDivisionError: float division by zero at app/pricing.py:28 in compute_total(). The failing code was most recently changed by commit b034e23 \"Show item count and average item price on order totals\" by Rahul Verma, shipped in deployment v1.4.0.",
     "grounding_warnings": 0,
     "patch_attempts": 1,
+    "patch_sequence": [
+      {
+        "strategy": "revert",
+        "status": "passed"
+      }
+    ],
     "patch_strategy": "revert",
     "patch_status": "passed",
     "patch_error": null,
@@ -86,19 +92,19 @@
     "incidents_opened": 1,
     "expected_incident": true,
     "detection_correct": true,
-    "pipeline_seconds": 4.2,
+    "pipeline_seconds": 4.6,
     "title_detected": "TypeError: 'NoneType' object is not subscriptable",
     "exception_correct": true,
     "culprit_rank": 1,
     "top_suspects": [
       {
-        "commit": "3109ca5",
+        "commit": "e66421a",
         "score": 1.0,
         "message": "Support seasonal campaigns: coupon expiry and maximum discount",
         "reasons": [
           "Last modified the failing line app/pricing.py:17 (in apply_discount) [git blame]",
           "Modified 3 line(s) of function apply_discount() in app/pricing.py [git blame]",
-          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:19 UTC)",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:56 UTC, the last deployment before errors began (16:56:28 UTC)",
           "Touched file(s) in the stack trace: app/pricing.py",
           "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
           "Commit message mentions: discount"
@@ -106,7 +112,7 @@
         "is_culprit": true
       },
       {
-        "commit": "ea2487d",
+        "commit": "4712939",
         "score": 0.375,
         "message": "Add coupon support to order totals",
         "reasons": [
@@ -120,11 +126,11 @@
         "is_culprit": false
       },
       {
-        "commit": "db6d4b0",
+        "commit": "b7dd70c",
         "score": 0.35,
         "message": "Add request duration to access logs",
         "reasons": [
-          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:19 UTC)",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:56 UTC, the last deployment before errors began (16:56:28 UTC)",
           "Touched file(s) in the stack trace: app/main.py"
         ],
         "is_culprit": false
@@ -132,9 +138,15 @@
     ],
     "rca_suspected_correct": true,
     "rca_confidence": 0.8,
-    "rca_root_cause": "TypeError: 'NoneType' object is not subscriptable at app/pricing.py:17 in apply_discount(). The failing code was most recently changed by commit 3109ca5 \"Support seasonal campaigns: coupon expiry and maximum discount\" by Rahul Verma, shipped in deployment v1.4.0.",
+    "rca_root_cause": "TypeError: 'NoneType' object is not subscriptable at app/pricing.py:17 in apply_discount(). The failing code was most recently changed by commit e66421a \"Support seasonal campaigns: coupon expiry and maximum discount\" by Rahul Verma, shipped in deployment v1.4.0.",
     "grounding_warnings": 0,
     "patch_attempts": 1,
+    "patch_sequence": [
+      {
+        "strategy": "revert",
+        "status": "passed"
+      }
+    ],
     "patch_strategy": "revert",
     "patch_status": "passed",
     "patch_error": null,
@@ -179,18 +191,18 @@
     "culprit_rank": 1,
     "top_suspects": [
       {
-        "commit": "7b6dbc9",
+        "commit": "456293e",
         "score": 0.4,
         "message": "Import DockCo supplier catalogue: add SKU-1006 and first order",
         "reasons": [
-          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:28 UTC)",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:56 UTC, the last deployment before errors began (16:56:38 UTC)",
           "Changed app/catalog.py, imported by the failing code (app/main.py, app/pricing.py)",
           "Commit message mentions: order, price"
         ],
         "is_culprit": true
       },
       {
-        "commit": "691e8d4",
+        "commit": "ab67a4c",
         "score": 0.4,
         "message": "Add order pricing with GST calculation",
         "reasons": [
@@ -203,11 +215,11 @@
         "is_culprit": false
       },
       {
-        "commit": "aa5c4d4",
+        "commit": "8f11af0",
         "score": 0.35,
         "message": "Add request duration to access logs",
         "reasons": [
-          "Shipped in deployment v1.4.0 at 2026-10-04 10:08 UTC, the last deployment before errors began (13:08:28 UTC)",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:56 UTC, the last deployment before errors began (16:56:38 UTC)",
           "Touched file(s) in the stack trace: app/main.py"
         ],
         "is_culprit": false
@@ -215,9 +227,15 @@
     ],
     "rca_suspected_correct": true,
     "rca_confidence": 0.32,
-    "rca_root_cause": "KeyError: 'price' at app/pricing.py:11 in order_subtotal(). The failing code was most recently changed by commit 7b6dbc9 \"Import DockCo supplier catalogue: add SKU-1006 and first order\" by Karan Mehta, shipped in deployment v1.4.0.",
+    "rca_root_cause": "KeyError: 'price' at app/pricing.py:11 in order_subtotal(). The failing code was most recently changed by commit 456293e \"Import DockCo supplier catalogue: add SKU-1006 and first order\" by Karan Mehta, shipped in deployment v1.4.0.",
     "grounding_warnings": 0,
     "patch_attempts": 1,
+    "patch_sequence": [
+      {
+        "strategy": "revert",
+        "status": "passed"
+      }
+    ],
     "patch_strategy": "revert",
     "patch_status": "passed",
     "patch_error": null,

@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from aion.ai.providers.base import LLMResponse
 from aion.ai.providers.factory import set_provider_override
+from aion.config import settings
 from aion.db import session_scope
 from aion.gitops.repo import GitRepo
 from aion.main import create_app
@@ -158,19 +159,22 @@ def test_llm_workflow_produces_validated_fix_with_regression_test(client, demo_r
     assert any(r["kind"] == "incident" and r["status"] == 400 for r in replay["details"]["results"])
 
 
-def test_failed_validation_never_reaches_approval(client, demo_repo, tmp_path):
+class BadPatchLLM(ScriptedLLM):
+    """Correct RCA, but every patch breaks the module."""
+
+    def complete_json(self, system, user, schema, schema_name, max_tokens):
+        if schema_name == "RCAOutput":
+            return super().complete_json(system, user, schema, schema_name, max_tokens)
+        self.calls.append((schema_name, user))
+        return LLMResponse(json.dumps({
+            "summary": "broken", "rationale": "", "risk_notes": "", "new_test_files": [],
+            "edits": [{"path": "app/pricing.py", "search": "GST_RATE = 0.18\n", "replace": "GST_RATE = (\n"}]}))
+
+
+def test_failed_validation_never_reaches_approval(client, demo_repo, tmp_path, monkeypatch):
     repo_dir, commits, incident_id = _setup(client, demo_repo, tmp_path)
     buggy = next(c for c in commits if c.message.startswith("Support seasonal campaigns"))
-
-    class BadPatchLLM(ScriptedLLM):
-        def complete_json(self, system, user, schema, schema_name, max_tokens):
-            if schema_name == "RCAOutput":
-                return super().complete_json(system, user, schema, schema_name, max_tokens)
-            self.calls.append((schema_name, user))
-            # A "fix" that breaks the module: validation must catch it.
-            return LLMResponse(json.dumps({
-                "summary": "broken", "rationale": "", "risk_notes": "", "new_test_files": [],
-                "edits": [{"path": "app/pricing.py", "search": "GST_RATE = 0.18\n", "replace": "GST_RATE = (\n"}]}))
+    monkeypatch.setattr(settings, "revert_fallback", False)
 
     set_provider_override(BadPatchLLM(buggy.sha))
     orchestrator.run_pipeline(incident_id)
@@ -181,3 +185,19 @@ def test_failed_validation_never_reaches_approval(client, demo_repo, tmp_path):
     assert client.post(f"/api/incidents/{incident_id}/approve", json={"approver": "Aditya"}).status_code == 409
     with session_scope() as s:
         assert s.scalar(select(Incident.status).where(Incident.id == incident_id)) == "validation_failed"
+
+
+def test_revert_fallback_after_failed_ai_patches_still_needs_approval(client, demo_repo, tmp_path):
+    repo_dir, commits, incident_id = _setup(client, demo_repo, tmp_path)
+    buggy = next(c for c in commits if c.message.startswith("Support seasonal campaigns"))
+    set_provider_override(BadPatchLLM(buggy.sha))
+
+    orchestrator.run_pipeline(incident_id)
+    detail = client.get(f"/api/incidents/{incident_id}").json()
+    patches = detail["patches"]
+    assert [p["strategy"] for p in patches] == ["llm_edit", "llm_edit", "revert"]
+    assert [p["status"] for p in patches] == ["failed", "failed", "passed"]
+    assert "fallback after 2 failed AI attempts" in patches[-1]["generator"]
+    assert detail["incident"]["status"] == "awaiting_approval"  # still a human decision
+    assert any(a["action"] == "revert_fallback" for a in detail["audit"])
+    assert GitRepo(repo_dir).rev_parse("main") == commits[-1].sha  # production untouched

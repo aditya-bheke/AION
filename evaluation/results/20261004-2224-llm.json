@@ -1,0 +1,250 @@
+[
+  {
+    "scenario": "empty-cart-average",
+    "title": "New average-price field divides by zero for empty carts (ZeroDivisionError)",
+    "mode": "llm",
+    "analyzer": "openai_compat:qwen2.5-coder:7b",
+    "log_events": 39,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 107.2,
+    "title_detected": "ZeroDivisionError: float division by zero",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "fac69f5",
+        "score": 1.0,
+        "message": "Show item count and average item price on order totals",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:28 (in compute_total) [git blame]",
+          "Modified 4 line(s) of function compute_total() in app/pricing.py [git blame]",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:47 UTC, the last deployment before errors began (16:47:46 UTC)",
+          "Touched file(s) in the stack trace: app/pricing.py",
+          "Commit message mentions: order"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "7c71d43",
+        "score": 0.375,
+        "message": "Add coupon support to order totals",
+        "reasons": [
+          "Modified 10 line(s) of function compute_total() in app/pricing.py [git blame]",
+          "Last modified the calling line app/main.py:77 (in order_total) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "29aeffd",
+        "score": 0.325,
+        "message": "Initial orders service: catalog, order lookup and JSON logging",
+        "reasons": [
+          "Last modified the calling line app/main.py:34 (in access_log) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py",
+          "Changed app/__init__.py, app/catalog.py, app/logging_setup.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Modified 11 line(s) of function access_log() in app/main.py [git blame]",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.9,
+    "rca_root_cause": "The `compute_total` function in `app/pricing.py` is dividing by `item_count`, which can be zero if the order has no items.",
+    "grounding_warnings": 0,
+    "patch_attempts": 3,
+    "patch_strategy": "llm_edit",
+    "patch_status": "failed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "passed",
+      "unit_tests": "failed",
+      "staging_deploy": "skipped",
+      "replay_requests": "skipped"
+    },
+    "patch_diff": "diff --git a/app/pricing.py b/app/pricing.py\nindex 1f162d6..0c28696 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -25,7 +25,7 @@ def compute_total(order, coupon_code=None):\n     taxable = subtotal - discount\n     tax = round(taxable * GST_RATE, 2)\n     item_count = sum(item[\"qty\"] for item in order[\"items\"])\n-    average_item_price = round(subtotal / item_count, 2)\n+    average_item_price = round(subtotal / item_count, 2) if item_count > 0 else 0\n     return {\n         \"order_id\": order[\"id\"],\n         \"coupon\": coupon_code.upper() if coupon_code else None,\ndiff --git a/tests/test_aion_empty_cart_average.py b/tests/test_aion_empty_cart_average.py\nnew file mode 100644\nindex 0000000..11969d0\n--- /dev/null\n+++ b/tests/test_aion_empty_cart_average.py\n@@ -0,0 +1,7 @@\n+from app import catalog, pricing\n+\n+\n+def test_empty_cart_average_item_price():\n+    result = pricing.compute_total(catalog.get_order(1001))\n+    assert result['item_count'] == 0\n+    assert result['average_item_price'] == 0\n",
+    "failed_step": {
+      "name": "unit_tests",
+      "summary": "1 failed, 9 passed in 0.94s",
+      "output": "F.........                                                               [100%]\n================================== FAILURES ===================================\n_____________________ test_empty_cart_average_item_price ______________________\n\n    def test_empty_cart_average_item_price():\n        result = pricing.compute_total(catalog.get_order(1001))\n>       assert result['item_count'] == 0\nE       assert 3 == 0\n\ntests\\test_aion_empty_cart_average.py:6: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_aion_empty_cart_average.py::test_empty_cart_average_item_price\n1 failed, 9 passed in 0.94s\n"
+    },
+    "final_status": "validation_failed",
+    "automated_success": false,
+    "input_tokens": 16293,
+    "output_tokens": 1287
+  },
+  {
+    "scenario": "expired-coupon",
+    "title": "Expired coupon crashes pricing (TypeError)",
+    "mode": "llm",
+    "analyzer": "openai_compat:qwen2.5-coder:7b",
+    "log_events": 44,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 116.0,
+    "title_detected": "TypeError: 'NoneType' object is not subscriptable",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "5a7ebd3",
+        "score": 1.0,
+        "message": "Support seasonal campaigns: coupon expiry and maximum discount",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:17 (in apply_discount) [git blame]",
+          "Modified 3 line(s) of function apply_discount() in app/pricing.py [git blame]",
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:49 UTC, the last deployment before errors began (16:49:36 UTC)",
+          "Touched file(s) in the stack trace: app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: discount"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "33ba969",
+        "score": 0.375,
+        "message": "Add coupon support to order totals",
+        "reasons": [
+          "Modified 1 line(s) of function apply_discount() in app/pricing.py [git blame]",
+          "Last modified the calling line app/pricing.py:26 (in compute_total) [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Changed app/coupons.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "a380a56",
+        "score": 0.35,
+        "message": "Add request duration to access logs",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:49 UTC, the last deployment before errors began (16:49:36 UTC)",
+          "Touched file(s) in the stack trace: app/main.py"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": true,
+    "rca_confidence": 0.9,
+    "rca_root_cause": "The `apply_discount` function is attempting to access a `None` object, specifically the `percent` key of a `None` coupon dictionary.",
+    "grounding_warnings": 0,
+    "patch_attempts": 3,
+    "patch_strategy": "llm_edit",
+    "patch_status": "failed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "passed",
+      "unit_tests": "failed",
+      "staging_deploy": "skipped",
+      "replay_requests": "skipped"
+    },
+    "patch_diff": "diff --git a/app/pricing.py b/app/pricing.py\nindex b1078a8..94d611d 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -14,7 +14,7 @@ def order_subtotal(order):\n \n def apply_discount(subtotal, coupon):\n     \"\"\"Percentage discount, capped at the campaign's maximum discount.\"\"\"\n-    discount = subtotal * coupon[\"percent\"] / 100\n+    discount = 0.0 if coupon is None else subtotal * coupon[\"percent\"] / 100\n     return round(min(discount, coupon[\"max_discount\"]), 2)\n \n \ndiff --git a/tests/test_aion_handle_none_coupon.py b/tests/test_aion_handle_none_coupon.py\nnew file mode 100644\nindex 0000000..e1807d2\n--- /dev/null\n+++ b/tests/test_aion_handle_none_coupon.py\n@@ -0,0 +1,4 @@\n+from app import pricing\n+def test_handle_none_coupon():\n+    result = pricing.compute_total(catalog.get_order(1001), None)\n+    assert result[\"discount\"] == 0.0\n",
+    "failed_step": {
+      "name": "unit_tests",
+      "summary": "1 failed, 9 passed in 1.02s",
+      "output": "F.........                                                               [100%]\n================================== FAILURES ===================================\n___________________________ test_handle_none_coupon ___________________________\n\n    def test_handle_none_coupon():\n>       result = pricing.compute_total(catalog.get_order(1001), None)\nE       NameError: name 'catalog' is not defined\n\ntests\\test_aion_handle_none_coupon.py:3: NameError\n=========================== short test summary info ===========================\nFAILED tests/test_aion_handle_none_coupon.py::test_handle_none_coupon - NameE...\n1 failed, 9 passed in 1.02s\n"
+    },
+    "final_status": "validation_failed",
+    "automated_success": false,
+    "input_tokens": 19715,
+    "output_tokens": 1306
+  },
+  {
+    "scenario": "healthy-release",
+    "title": "Harmless release with background noise (no incident expected)",
+    "mode": "llm",
+    "analyzer": "openai_compat:qwen2.5-coder:7b",
+    "log_events": 31,
+    "incidents_opened": 0,
+    "expected_incident": false,
+    "detection_correct": true,
+    "final_status": "no incident",
+    "automated_success": true
+  },
+  {
+    "scenario": "supplier-feed",
+    "title": "Supplier product uses a different field name (KeyError)",
+    "mode": "llm",
+    "analyzer": "openai_compat:qwen2.5-coder:7b",
+    "log_events": 39,
+    "incidents_opened": 1,
+    "expected_incident": true,
+    "detection_correct": true,
+    "pipeline_seconds": 142.0,
+    "title_detected": "KeyError: 'price'",
+    "exception_correct": true,
+    "culprit_rank": 1,
+    "top_suspects": [
+      {
+        "commit": "1cf6d22",
+        "score": 0.4,
+        "message": "Import DockCo supplier catalogue: add SKU-1006 and first order",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:51 UTC, the last deployment before errors began (16:51:38 UTC)",
+          "Changed app/catalog.py, imported by the failing code (app/main.py, app/pricing.py)",
+          "Commit message mentions: order, price"
+        ],
+        "is_culprit": true
+      },
+      {
+        "commit": "2c6a49e",
+        "score": 0.4,
+        "message": "Add order pricing with GST calculation",
+        "reasons": [
+          "Last modified the failing line app/pricing.py:11 (in order_subtotal) [git blame]",
+          "Modified 6 line(s) of function order_subtotal() in app/pricing.py [git blame]",
+          "Touched file(s) in the stack trace: app/main.py, app/pricing.py",
+          "Commit message mentions: order",
+          "Already in production before v1.4.0 while this error did not occur (score x0.5)"
+        ],
+        "is_culprit": false
+      },
+      {
+        "commit": "74dbb04",
+        "score": 0.35,
+        "message": "Add request duration to access logs",
+        "reasons": [
+          "Shipped in deployment v1.4.0 at 2026-10-04 13:51 UTC, the last deployment before errors began (16:51:38 UTC)",
+          "Touched file(s) in the stack trace: app/main.py"
+        ],
+        "is_culprit": false
+      }
+    ],
+    "rca_suspected_correct": false,
+    "rca_confidence": 0.8,
+    "rca_root_cause": "The `order_subtotal` function in `app/pricing.py` is accessing a dictionary key 'price' that does not exist, causing a `KeyError`. This error is triggered when processing an order that includes a product without a 'price' key.",
+    "grounding_warnings": 0,
+    "patch_attempts": 3,
+    "patch_strategy": "llm_edit",
+    "patch_status": "failed",
+    "patch_error": null,
+    "validation": {
+      "syntax_check": "passed",
+      "regression_reproduce": "passed",
+      "unit_tests": "failed",
+      "staging_deploy": "skipped",
+      "replay_requests": "skipped"
+    },
+    "patch_diff": "diff --git a/app/pricing.py b/app/pricing.py\nindex dea801f..1dd5b6d 100644\n--- a/app/pricing.py\n+++ b/app/pricing.py\n@@ -8,7 +8,10 @@ def order_subtotal(order):\n     total = 0.0\n     for item in order[\"items\"]:\n         product = catalog.get_product(item[\"sku\"])\n-        total += product[\"price\"] * item[\"qty\"]\n+        if \"price\" in product:\n+            total += product[\"price\"] * item[\"qty\"]\n+        else:\n+            total += 0.0\n     return round(total, 2)\n \n \ndiff --git a/tests/test_aion_order_subtotal_missing_price.py b/tests/test_aion_order_subtotal_missing_price.py\nnew file mode 100644\nindex 0000000..5501251\n--- /dev/null\n+++ b/tests/test_aion_order_subtotal_missing_price.py\n@@ -0,0 +1,28 @@\n+from app import pricing\n+\n+\n+def test_order_subtotal_missing_price():\n+    order = {\n+        \"id\": 1009,\n+        \"items\": [\n+            {\n+                \"sku\": \"SKU-0001\",\n+                \"qty\": 1\n+            }\n+        ]\n+    }\n+    order[\"items\"][0][\"product\"] = {\n+        \"name\": \"Product 1\",\n+        \"description\": \"Description 1\",\n+        \"supplier\": \"Supplier 1\",\n+        \"category\": \"Category 1\",\n+        \"stock\": 10,\n+        \"weight\": 1.0,\n+        \"dimensions\": {\n+            \"length\": 10.0,\n+            \"width\": 10.0,\n+            \"height\": 10.0\n+        }\n+    }\n+    result = pricing.order_subtotal(order)\n+    assert result == 0.0\n",
+    "failed_step": {
+      "name": "unit_tests",
+      "summary": "1 failed, 9 passed in 0.99s",
+      "output": "F.........                                                               [100%]\n================================== FAILURES ===================================\n______________________ test_order_subtotal_missing_price ______________________\n\n    def test_order_subtotal_missing_price():\n        order = {\n            \"id\": 1009,\n            \"items\": [\n                {\n                    \"sku\": \"SKU-0001\",\n                    \"qty\": 1\n                }\n            ]\n        }\n        order[\"items\"][0][\"product\"] = {\n            \"name\": \"Product 1\",\n            \"description\": \"Description 1\",\n            \"supplier\": \"Supplier 1\",\n            \"category\": \"Category 1\",\n            \"stock\": 10,\n            \"weight\": 1.0,\n            \"dimensions\": {\n                \"length\": 10.0,\n                \"width\": 10.0,\n                \"height\": 10.0\n            }\n        }\n>       result = pricing.order_subtotal(order)\n\ntests\\test_aion_order_subtotal_missing_price.py:27: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\norder = {'id': 1009, 'items': [{'sku': 'SKU-0001', 'qty': 1, 'product': {'name': 'Product 1', 'description': 'Description 1', 'supplier': 'Supplier 1', 'category': 'Category 1', ...}}]}\n\n    def order_subtotal(order):\n        total = 0.0\n        for item in order[\"items\"]:\n            product = catalog.get_product(item[\"sku\"])\n>           if \"price\" in product:\nE           TypeError: argument of type 'NoneType' is not iterable\n\napp\\pricing.py:11: TypeError\n=========================== short test summary info ===========================\nFAILED tests/test_aion_order_subtotal_missing_price.py::test_order_subtotal_missing_price\n1 failed, 9 passed in 0.99s\n"
+    },
+    "final_status": "validation_failed",
+    "automated_success": false,
+    "input_tokens": 14550,
+    "output_tokens": 1942
+  }
+]

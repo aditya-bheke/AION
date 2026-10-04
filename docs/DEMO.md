@@ -80,7 +80,7 @@ Each scenario runs in an isolated temporary workspace through the real pipeline;
 |---|---|---|
 | No LLM (default) | nothing | Heuristic RCA; patch = `git revert` of suspect commit; labelled everywhere |
 | Claude | `ANTHROPIC_API_KEY=…` (model defaults to `claude-opus-5-5`) | LLM RCA citing evidence; LLM-written fix + regression test (`regression_reproduce` step runs) |
-| Local model (free) | `AION_OPENAI_BASE_URL=http://127.0.0.1:11434/v1`, `AION_OPENAI_MODEL=qwen2.5-coder:7b` | Same as Claude but via Ollama (or LM Studio / any OpenAI-compatible server); weaker models produce weaker fixes — validation catches broken ones |
+| Local model (free) | `AION_OPENAI_BASE_URL=http://127.0.0.1:11434/v1`, `AION_OPENAI_MODEL=qwen2.5-coder:7b` | Same as Claude but via Ollama (or LM Studio / any OpenAI-compatible server). The 7B model diagnoses well but its fixes usually fail validation; AION then falls back to reverting the suspect commit (labelled, validated, still human-approved) |
 
 Restart AION after editing `.env`. The top-right pill in the dashboard shows the active mode.
 
@@ -101,7 +101,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start-ollama.ps1
 cd backend
 .venv\Scripts\python -m pytest -q
 ```
-38 tests, ~40 s: unit tests for every component, three end-to-end tests that build the demo repo, generate real logs from the real service, run the full pipeline (including starting a staging server), enforce the approval gate and deploy, and checks that every evaluation scenario builds with a latent bug and a known culprit.
+44 tests, ~55 s: unit tests for every component, three end-to-end tests that build the demo repo, generate real logs from the real service, run the full pipeline (including starting a staging server), enforce the approval gate and deploy, and checks that every evaluation scenario builds with a latent bug and a known culprit.
 
 ## Troubleshooting
 

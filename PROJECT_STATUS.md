@@ -7,9 +7,10 @@ _Last updated: 2026-10-04_
 
 | | |
 |---|---|
-| Backend tests | 41 passing (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
+| Backend tests | 44 passing (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
 | Live demo | verified: incident detected → awaiting approval in ~4 s; approve + deploy → verified + resolved in ~2 s |
-| AI mode on this machine | heuristic (no LLM configured). LLM path implemented and tested with a scripted provider; needs `ANTHROPIC_API_KEY` or a local OpenAI-compatible model to run live |
+| AI mode on this machine | local LLM: Ollama + qwen2.5-coder:7b (on D:), via `backend/.env`; start it with `scripts\start-ollama.ps1` |
+| Evaluation (4 scenarios) | heuristic: 4/4 reach approval gate, RCA 3/3 · local LLM: 3/4, RCA 2/3 (AI patches fail validation; revert fallback rescues 2) — `docs/EVALUATION.md` |
 | Dashboard | built (`frontend/dist`), served at http://127.0.0.1:8000 |
 
 ## Completed
@@ -23,9 +24,10 @@ _Last updated: 2026-10-04_
 - Human approval gate: state machine, approval bound to commit SHA, separate deploy action, reject/withdraw.
 - Deployment: preflight checks, fast-forward merge, verification of running commit + replay on production.
 - Audit trail; React dashboard; demo service + GitOps controller; documentation system.
+- Phase 2: local LLM (portable Ollama on D:), 4 bug scenarios, evaluation harness + results, dependency-overlap correlation signal, indentation-only edit repair, revert fallback after failed AI patches.
 
 ## Currently being worked on
-**Phase 2 — real AI + evaluation (paused mid-way).** Done: local LLM (Ollama + qwen2.5-coder:7b on D:), 4 bug scenarios, evaluation harness, fixes found by evaluation (heuristic mode now 4/4). Remaining: re-run LLM-mode evaluation, write docs/EVALUATION.md, live demo in LLM mode. Details and resume steps: `docs/logs/2026-10-04-05-phase2-local-llm-and-evaluation.md`.
+Nothing in progress. **Phase 2 (real AI + evaluation) is complete** — see `docs/EVALUATION.md`. Next suggested: compare with Claude, then Phase 3 (authentication, sandboxed validation, secret redaction).
 
 ## Known bugs
 - None open. Four bugs found during live testing were fixed (see `docs/logs/2026-10-04-03-…`).
@@ -43,7 +45,8 @@ Full list: `docs/ROADMAP.md`.
 ## Important technical decisions (summary — full reasoning in `docs/DECISIONS.md`)
 Modular monolith (FastAPI + SQLite/SQLAlchemy + React/Vite) · in-process single worker · structured JSON logs · regex templating + stack fingerprints · spike-vs-baseline detection · git CLI · blame-based explainable correlation · provider-neutral LLM layer, Claude by default · evidence pack instead of vector RAG · evidence IDs + grounding · deterministic fallback, clearly labelled · search/replace patches · code-enforced patch policy · worktree per attempt · local CI runner with staging replay · approval as a state-machine gate bound to a SHA · GitOps fast-forward deployment with verification · append-only audit.
 
-## What remains after the MVP
+## What remains
+0. (Optional) Run the evaluation with Claude for a stronger-model comparison.
 1. Authentication and approver roles (optionally two-person approval).
 2. Container sandbox for validation; secret/PII redaction before prompting.
 3. Real CI integration (GitHub Actions) and PR-based fixes.
@@ -51,7 +54,7 @@ Modular monolith (FastAPI + SQLite/SQLAlchemy + React/Vite) · in-process single
 5. Metrics-based detection; more languages (Java, Node.js).
 6. Vector retrieval over runbooks/postmortems; learned correlation weights.
 7. Evaluation suite of seeded bugs (RCA accuracy, patch success per model).
-8. Run and document a live session with a real LLM (Claude or a local model).
+8. Repeated evaluation runs per scenario (LLM variance); more scenarios.
 
 ## How to run the current version
 ```powershell

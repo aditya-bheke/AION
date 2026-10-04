@@ -32,17 +32,20 @@ def _leading_ws(line: str) -> str:
     return line[: len(line) - len(line.lstrip())]
 
 
-def _reindent_variants(replace: str, base: str) -> list[tuple[str, str]]:
+def _reindent_variants(replace: str, base: str, first_line_prefixed: bool) -> list[tuple[str, str]]:
     """Candidate re-indentations of `replace` anchored at indentation `base`.
 
     Small models often drop the relative indentation of a replacement block
-    (e.g. keep the first line indented but write the rest at column 0). Each
-    variant is a (description, text) pair; the caller keeps the first one that
-    makes the file parse again.
+    (e.g. keep the first line indented but write the rest at column 0).
+    `first_line_prefixed` is False when the matched text starts in the middle
+    of an already-indented line, so the file supplies the first line's
+    indentation. Each variant is a (description, text) pair; the caller keeps
+    the first one that makes the file parse again.
     """
     lines = replace.splitlines(keepends=True)
     if not lines:
         return []
+    first_prefix = base if first_line_prefixed else ""
 
     def prefix(block: list[str]) -> list[str]:
         return [(base + ln) if ln.strip() else ln for ln in block]
@@ -51,10 +54,12 @@ def _reindent_variants(replace: str, base: str) -> list[tuple[str, str]]:
     # (a) first line re-anchored, remaining lines dedented as a block and re-anchored
     rest = textwrap.dedent("".join(lines[1:])).splitlines(keepends=True)
     variants.append(("re-indented continuation lines relative to the edited block",
-                     "".join(prefix([lines[0].lstrip(" \t")] + rest))))
+                     first_prefix + lines[0].lstrip(" \t") + "".join(prefix(rest))))
     # (b) whole block dedented and re-anchored
     whole = textwrap.dedent(replace).splitlines(keepends=True)
-    variants.append(("re-indented the replacement block to the edited location", "".join(prefix(whole))))
+    if whole:
+        variants.append(("re-indented the replacement block to the edited location",
+                         first_prefix + whole[0] + "".join(prefix(whole[1:]))))
     return [(d, v) for d, v in variants if v != replace]
 
 
@@ -93,8 +98,10 @@ def apply_edits(worktree: Path, edits: list[FileEdit], new_files: list[NewFile],
         if rel.endswith(".py") and _parses(content) and not _parses(updated):
             start = content.index(search)
             line_start = content.rfind("\n", 0, start) + 1
-            base = _leading_ws(content[line_start:]) if not search[:1].isspace() else _leading_ws(search)
-            for description, variant in _reindent_variants(replace, base):
+            # Does the match begin after the line's existing indentation (search without leading spaces)?
+            mid_line = start > line_start and not content[line_start:start].strip()
+            base = _leading_ws(content[line_start:])
+            for description, variant in _reindent_variants(replace, base, first_line_prefixed=not mid_line):
                 candidate = content.replace(search, variant, 1)
                 if _parses(candidate):
                     updated = candidate

@@ -62,6 +62,8 @@ class Settings:
     # --- pipeline ---
     auto_pipeline: bool = field(default_factory=lambda: _bool("AION_AUTO_PIPELINE", True))
     max_patch_attempts: int = field(default_factory=lambda: _int("AION_MAX_PATCH_ATTEMPTS", 2))
+    # After all AI patch attempts fail validation, try reverting the RCA's suspected commit.
+    revert_fallback: bool = field(default_factory=lambda: _bool("AION_REVERT_FALLBACK", True))
     collector_interval_seconds: float = field(
         default_factory=lambda: float(os.getenv("AION_COLLECTOR_INTERVAL", "2.0"))
     )

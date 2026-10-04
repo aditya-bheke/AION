@@ -34,6 +34,8 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-26](#d-26-intentionally-not-in-the-mvp) | Intentionally NOT in the MVP | Scope | Accepted |
 | [D-27](#d-27-scenario-based-evaluation-with-known-answers) | Scenario-based evaluation with known answers | Evaluation | Accepted |
 | [D-28](#d-28-local-llm-via-portable-ollama-on-d-with-a-12k-context-window) | Local LLM via portable Ollama on D:, 12k context | AI / Infrastructure | Accepted |
+| [D-29](#d-29-indentation-only-repair-of-ai-edits) | Indentation-only repair of AI edits | Program repair | Accepted |
+| [D-30](#d-30-revert-fallback-after-failed-ai-patches) | Revert fallback after failed AI patches | Program repair | Accepted |
 
 ---
 
@@ -359,7 +361,7 @@ Area: Git / RCA
 - D. The SZZ algorithm from research (find bug-introducing commits from fix commits) — needs fix history we don't have yet.
 
 ## Decision
-C (`aion/gitops/correlation.py`). Signals and weights: blame of the exact failing line (0.40), blame of lines in the enclosing function found with Python's `ast` (0.20), file overlap with the stack trace (0.15), shipped in the last deployment before the incident (0.20), commit-message keyword overlap (0.05). Blame runs **at the revision that was deployed** when errors began. Each signal counts **once** per commit (its strongest instance), and a commit already in production before the suspect deployment, while the error did not occur, is multiplied by 0.5. (Both rules were added after live testing showed an older commit tying the culprit at 1.0 because blame signals were summed across stack frames.)
+C (`aion/gitops/correlation.py`). Signals and weights: blame of the exact failing line (0.40), blame of lines in the enclosing function found with Python's `ast` (0.20), file overlap with the stack trace (0.15), shipped in the last deployment before the incident (0.20), commit-message keyword overlap (0.05). Blame runs **at the revision that was deployed** when errors began. Each signal counts **once** per commit (its strongest instance), and a commit already in production before the suspect deployment, while the error did not occur, is multiplied by 0.5. (Both rules were added after live testing showed an older commit tying the culprit at 1.0 because blame signals were summed across stack frames.) Added after the evaluation (D-27): **dependency overlap** (0.15) — the commit changed a module *imported by* a file in the stack trace (resolved with `ast`), which catches causes that are off the stack (e.g. data); and keywords are taken only from the exception and the innermost three frames, not from generic log wrapper text.
 
 ## Reason
 Blame on the exact failing line is the strongest available evidence, and it is objective. Every point of score carries a human-readable reason shown in the dashboard. The LLM then confirms or disputes the ranking by reading the diff — two independent methods.
@@ -718,3 +720,57 @@ Everything lives on D:, nothing is installed on C:, and the server is scriptable
 
 ## Future Reconsideration
 If GPU memory allows, a larger coder model; or Claude for best quality — both are configuration changes only.
+
+---
+
+# Decision: D-29 Indentation-only repair of AI edits
+
+Date: 2026-10-04
+Status: Accepted
+Area: Program repair
+
+## Context
+The evaluation (D-27) showed every patch from the local 7B model failing the syntax check. The model's *intent* was right ("if coupon is None: discount = 0") but it lost relative indentation in the `replace` text — often after quoting `search` without the line's leading spaces. In Python, indentation is syntax.
+
+## Options Considered
+- A. Reject such patches (pure strictness) and rely on retries — retries repeated the same mistake.
+- B. Ask the model to output whole files — larger, riskier edits (see D-16).
+- C. Deterministic, indentation-only repair: apply the edit exactly; **only if** a previously parseable `.py` file no longer parses, try re-indented variants of the replacement anchored at the matched line's indentation (accounting for matches that start mid-line), and keep the first that parses.
+
+## Decision
+C (`remediation/apply.py`). The repair never changes tokens, only leading whitespace; it is recorded in the patch rationale ("Applied by AION: … indentation-only repair"); validation still compiles and tests the result.
+
+## Reason
+Turns a formatting weakness of small models into a non-issue without trusting them more: after the change all local-model patches compiled, and validation then judged their *logic*.
+
+## Trade-offs
+− A re-indentation could, in principle, produce valid Python with a different block structure than intended; tests, replay and the human review remain the safeguards.
+
+---
+
+# Decision: D-30 Revert fallback after failed AI patches
+
+Date: 2026-10-04
+Status: Accepted
+Area: Program repair
+
+## Context
+With a weak model, every AI patch can fail validation even when the root cause and the culprit commit are correctly identified (evaluation: 2 of 3 incidents). The incident then stopped at `validation_failed` although a safe mitigation existed.
+
+## Options Considered
+- A. Stop and hand over to a human (previous behaviour).
+- B. More AI attempts — measured: a third attempt did not help the 7B model.
+- C. After all AI attempts fail, if the (grounded) RCA names a suspect commit, try a deterministic `git revert` of it as a final attempt — what an on-call engineer does when a forward fix doesn't hold.
+
+## Decision
+C (`pipeline/orchestrator.py`, `AION_REVERT_FALLBACK=true`). The revert goes through the same validation, is labelled "deterministic git revert (fallback after N failed AI attempts)", is audited (`revert_fallback`), and still requires human approval. If the RCA names no commit, there is no fallback.
+
+## Reason
+Rollback-first is standard incident practice: restore service, then fix properly. Measured effect with the local model: approval gate reached in 3/4 scenarios instead of 1/4, with no incorrect patch reaching it.
+
+## Trade-offs
+− A revert removes the feature that commit introduced (stated in the rationale); the forward fix remains to be done by a developer.
+− Relies on the RCA's suspected commit; the RCA must be right (grounding ensures it is at least a real candidate).
+
+## Future Reconsideration
+Offer the revert alongside a failed-but-promising AI fix so the reviewer can choose.

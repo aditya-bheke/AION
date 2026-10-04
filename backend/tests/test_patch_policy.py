@@ -80,3 +80,26 @@ def test_correct_edits_are_never_reindented(tree):
                 [], files, notes)
     assert notes == []
     assert "    if True:\n        return 1" in (root / "app/b.py").read_text()
+
+
+@pytest.mark.parametrize("search", [
+    'discount = subtotal * coupon["percent"] / 100\n',       # model omitted the line's indentation
+    '    discount = subtotal * coupon["percent"] / 100\n',   # model included it
+])
+def test_indentation_repair_matches_real_model_output(tmp_path, search):
+    """Exact replacement text produced by qwen2.5-coder:7b during the evaluation."""
+    (tmp_path / "app").mkdir()
+    src = ('def apply_discount(subtotal, coupon):\n    """Doc."""\n'
+           '    discount = subtotal * coupon["percent"] / 100\n    return round(discount, 2)\n')
+    (tmp_path / "app" / "p.py").write_text(src, encoding="utf-8")
+    model_replace = ('if coupon is None:\n    discount = 0.0\nelse:\n'
+                     '    discount = subtotal * coupon["percent"] / 100\n')
+    if search.startswith("    "):
+        model_replace = "    " + model_replace
+    notes = []
+    apply_edits(tmp_path, [FileEdit(path="app/p.py", search=search, replace=model_replace)], [], {"app/p.py"}, notes)
+    namespace = {}
+    exec((tmp_path / "app" / "p.py").read_text(encoding="utf-8"), namespace)
+    assert namespace["apply_discount"](100, None) == 0.0
+    assert namespace["apply_discount"](100, {"percent": 10}) == 10.0
+    assert notes

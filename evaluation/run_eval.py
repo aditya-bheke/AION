@@ -122,11 +122,15 @@ def run_scenario(name: str, mode: str) -> dict:
                                    "message": s["message"].splitlines()[0], "reasons": s["reasons"],
                                    "is_culprit": s["commit_sha"] == culprit} for s in d["suspects"][:3]]
         result["rca_suspected_correct"] = bool(rca and culprit and rca["suspected_commit"] == culprit)
+        result["rca_suspected_commit"] = next((s["message"].splitlines()[0] for s in d["suspects"]
+                                               if rca and s["commit_sha"] == rca["suspected_commit"]),
+                                              "(none named)" if rca else None)
         result["rca_confidence"] = rca["confidence"] if rca else None
         result["rca_root_cause"] = rca["probable_root_cause"] if rca else None
         result["grounding_warnings"] = len(rca["grounding_warnings"]) if rca else None
         patches = d["patches"]
         result["patch_attempts"] = len(patches)
+        result["patch_sequence"] = [{"strategy": p["strategy"], "status": p["status"]} for p in patches]
         result["patch_strategy"] = patches[-1]["strategy"] if patches else None
         result["patch_status"] = patches[-1]["status"] if patches else None
         result["patch_error"] = patches[-1]["error"] if patches else None
@@ -159,7 +163,7 @@ def to_markdown(results: list[dict], mode: str) -> str:
     lines = [
         f"# AION evaluation — {datetime.now():%Y-%m-%d %H:%M} — mode: {mode}",
         "",
-        f"Analyzer: `{results[0]['analyzer'] if results else '-'}`",
+        f"Analyzer: `{results[0]['analyzer'] if results else '-'}` · max patch attempts: {settings.max_patch_attempts}",
         "",
         "| Scenario | Detection | Culprit rank (correlation) | RCA names culprit | Confidence | Patch | Regression test | Validation | Final status | Time (s) | Tokens in/out |",
         "|---|---|---|---|---|---|---|---|---|---|---|",
@@ -171,7 +175,9 @@ def to_markdown(results: list[dict], mode: str) -> str:
             s=r["scenario"], det=_mark(r.get("detection_correct")), rank=_mark(r.get("culprit_rank")),
             rca=_mark(r.get("rca_suspected_correct")) if r.get("incidents_opened") else "—",
             conf=r.get("rca_confidence", "—") if r.get("rca_confidence") is not None else "—",
-            patch=f"{r.get('patch_strategy') or '—'} ×{r.get('patch_attempts', 0)}" if r.get("patch_attempts") else "—",
+            patch=" → ".join(("AI" if p["strategy"] == "llm_edit" else "revert")
+                             + (" ✓" if p["status"] in ("passed", "deployed") else " ✗")
+                             for p in r.get("patch_sequence") or []) or "—",
             reg=val.get("regression_reproduce", "—"), val=_mark(blocking_ok), final=r.get("final_status"),
             t=r.get("pipeline_seconds", "—"),
             tok=f"{r.get('input_tokens', 0)}/{r.get('output_tokens', 0)}" if r.get("input_tokens") else "—"))

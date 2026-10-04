@@ -28,7 +28,9 @@ Watch the incident appear in the dashboard, review it, approve, deploy. Full dem
 
 **AI mode:** without configuration AION runs a clearly labelled deterministic analyzer and proposes a `git revert` of the suspect commit. To enable LLM root-cause analysis and AI-written fixes, copy `backend/.env.example` to `backend/.env` and set `ANTHROPIC_API_KEY` (Claude, default model `claude-opus-5-5`) or an OpenAI-compatible endpoint such as LM Studio / Ollama.
 
-**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (33 tests, including full end-to-end workflow tests).
+**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (44 tests, including full end-to-end workflow tests).
+
+**Evaluation:** `backend\.venv\Scripts\python evaluation\run_eval.py [--mode llm]` runs 4 bug scenarios through the real pipeline — results in [docs/EVALUATION.md](docs/EVALUATION.md).
 
 ## Repository layout
 
@@ -43,7 +45,8 @@ backend/            FastAPI application (package `aion`) + tests
   aion/pipeline/    background worker + orchestrator
   aion/api/         REST endpoints
 frontend/           React + Vite dashboard
-demo/               monitored demo service (git history overlays), repo builder, demo driver
+demo/               monitored demo service (history + bug scenarios), repo builder, demo driver
+evaluation/         evaluation harness and recorded results
 docs/               demo guide, decisions, roadmap, development log
 scripts/            setup script
 workspace/          runtime data (created at run time; git-ignored)
@@ -56,6 +59,7 @@ workspace/          runtime data (created at run time; git-ignored)
 | [docs/DEMO.md](docs/DEMO.md) | How to run and demonstrate AION, AI modes, troubleshooting |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Every technical decision with options, reasons and trade-offs |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Known limitations and post-MVP roadmap |
+| [docs/EVALUATION.md](docs/EVALUATION.md) | How well AION works on 4 bug scenarios (no-LLM vs local LLM), and what the evaluation exposed |
 | [docs/logs/](docs/logs/) | Development log |
 | [PROJECT_STATUS.md](PROJECT_STATUS.md) | Current status, limitations, roadmap |
 

@@ -8,4 +8,4 @@ Chronological record of meaningful milestones: what changed, how it was tested, 
 | 02 | 2026-10-04 | [Backend core: log pipeline, git correlation, AI layer, remediation, validation, deployment](2026-10-04-02-backend-core.md) |
 | 03 | 2026-10-04 | [Demo service, dashboard and first live end-to-end runs (4 bugs found and fixed)](2026-10-04-03-demo-dashboard-live-runs.md) |
 | 04 | 2026-10-04 | [Documentation and learning system](2026-10-04-04-documentation.md) |
-| 05 | 2026-10-04 | [Phase 2 (in progress): local LLM on D:, scenarios, evaluation harness](2026-10-04-05-phase2-local-llm-and-evaluation.md) |
+| 05 | 2026-10-04 | [Phase 2: local LLM on D:, scenarios, evaluation, fixes found by evaluation](2026-10-04-05-phase2-local-llm-and-evaluation.md) |

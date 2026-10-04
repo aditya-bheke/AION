@@ -154,18 +154,32 @@ def _run(incident_id: int) -> None:
                                            .order_by(PatchProposal.attempt.desc()).limit(1)) or 0
 
     # ---- Stage 3+4: patch -> validate, with bounded repair loop ----------------------
+    # The attempt plan: N AI attempts (each one sees the previous failure), then - if the
+    # RCA named a suspect commit - a deterministic revert as the last resort, like an
+    # on-call engineer rolling back when a forward fix doesn't hold. No LLM: revert only.
+    plan: list[Optional[Any]] = ([provider_for_patch] * settings.max_patch_attempts if provider_for_patch
+                                 else [None])
+    if provider_for_patch and settings.revert_fallback and rca_output.suspected_commit:
+        plan.append(None)
     feedback: Optional[str] = None
-    for n in range(1, settings.max_patch_attempts + 1):
+    for n, patch_provider in enumerate(plan, start=1):
         attempt = previous_attempts + n
+        last = n == len(plan)
         with session_scope() as session:
             incident = session.get(Incident, incident_id)
             service = session.get(Service, incident.service_id)
+            if provider_for_patch and patch_provider is None:
+                audit.record(session, "revert_fallback", "system:pipeline", incident_id=incident.id,
+                             reason=f"{n - 1} AI patch attempt(s) failed validation",
+                             commit=rca_output.suspected_commit)
             patch = create_patch(session, incident, service, rca_output, pack, failing, attempt, feedback,
-                                 provider_for_patch)
+                                 patch_provider)
+            if provider_for_patch and patch_provider is None:
+                patch.generator = f"deterministic git revert (fallback after {n - 1} failed AI attempts)"
             patch_id = patch.id
             if patch.status != "ready":
                 feedback = f"Your patch could not be applied: {patch.error}"
-                if n == settings.max_patch_attempts or provider_for_patch is None:
+                if last:
                     transition(session, incident, Status.VALIDATION_FAILED, "system:pipeline",
                                reason="no applicable patch", error=patch.error)
                     return
@@ -202,7 +216,7 @@ def _run(incident_id: int) -> None:
                            note="Validated patch is ready. Production deployment requires human approval.")
                 return
             feedback = _feedback_from(steps)
-            if n < settings.max_patch_attempts and provider_for_patch is not None:
+            if not last:
                 transition(session, incident, Status.PATCHING, "system:pipeline", reason="validation failed; retrying")
                 continue
             transition(session, incident, Status.VALIDATION_FAILED, "system:pipeline", patch_id=patch.id)
