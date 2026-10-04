@@ -1,0 +1,10 @@
+# Development Log
+
+Chronological record of meaningful milestones: what changed, how it was tested, what went wrong and how it was solved. Newest last. One file per milestone: `YYYY-MM-DD-NN-short-title.md`.
+
+| # | Date | Milestone |
+|---|------|-----------|
+| 01 | 2026-10-04 | [Repository assessment, architecture and MVP scope](2026-10-04-01-assessment-and-architecture.md) |
+| 02 | 2026-10-04 | [Backend core: log pipeline, git correlation, AI layer, remediation, validation, deployment](2026-10-04-02-backend-core.md) |
+| 03 | 2026-10-04 | [Demo service, dashboard and first live end-to-end runs (4 bugs found and fixed)](2026-10-04-03-demo-dashboard-live-runs.md) |
+| 04 | 2026-10-04 | [Documentation and learning system](2026-10-04-04-documentation.md) |

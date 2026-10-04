@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+backend/.venv/
+backend/.env
+
+# Node / frontend build
+frontend/node_modules/
+frontend/dist/
+
+# Runtime data: AION database, demo repository, logs, worktrees
+workspace/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Personal study material (learning notes, viva/interview prep) - kept local, not published
+docs/notes/
+docs/interview/

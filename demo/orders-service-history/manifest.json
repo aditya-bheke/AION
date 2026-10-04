@@ -1,0 +1,19 @@
+{
+  "service": "orders-service",
+  "commits": [
+    {"dir": "01-initial", "author": "Priya Sharma <priya@shop.example>", "hours_ago": 120,
+     "message": "Initial orders service: catalog, order lookup and JSON logging"},
+    {"dir": "02-pricing", "author": "Rahul Verma <rahul@shop.example>", "hours_ago": 98,
+     "message": "Add order pricing with GST calculation"},
+    {"dir": "03-coupons", "author": "Rahul Verma <rahul@shop.example>", "hours_ago": 76,
+     "message": "Add coupon support to order totals"},
+    {"dir": "04-payments", "author": "Ananya Iyer <ananya@shop.example>", "hours_ago": 72,
+     "message": "Add payment endpoint backed by the gateway client"},
+    {"dir": "05-docs", "author": "Karan Mehta <karan@shop.example>", "hours_ago": 50,
+     "message": "Docs: document API endpoints in README", "deploy": "v1.3.0", "deploy_hours_ago": 48},
+    {"dir": "06-campaigns", "author": "Rahul Verma <rahul@shop.example>", "hours_ago": 6,
+     "message": "Support seasonal campaigns: coupon expiry and maximum discount\n\nCoupons now carry a validity date and a discount cap. get_coupon() returns\nNone for unknown or expired codes so they are no longer silently accepted."},
+    {"dir": "07-request-timing", "author": "Ananya Iyer <ananya@shop.example>", "hours_ago": 4,
+     "message": "Add request duration to access logs", "deploy": "v1.4.0", "deploy_hours_ago": 3}
+  ]
+}

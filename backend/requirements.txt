@@ -1,0 +1,13 @@
+# --- Web API ---
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30
+# --- Persistence ---
+SQLAlchemy>=2.0,<3.0
+# --- Config ---
+python-dotenv>=1.0
+# --- HTTP client (OpenAI-compatible LLM providers, health checks, replay) ---
+httpx>=0.27
+# --- Anthropic (Claude) official SDK ---
+anthropic>=0.70
+# --- Testing ---
+pytest>=8.0
