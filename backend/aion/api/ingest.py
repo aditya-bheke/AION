@@ -13,7 +13,8 @@ from aion.config import settings
 from aion.db import get_session
 from aion.gitops.repo import GitRepo
 from aion.logs.ingest import ingest_events
-from aion.models import Deployment, Service
+from aion.integrations.github import normalize_repo
+from aion.models import Deployment, Service, ServiceGitHub
 from aion.pipeline.worker import enqueue_pipeline
 from aion.schemas import DeploymentIn, IngestIn, ServiceIn
 from aion.security import Principal, require_role, require_service_or_admin
@@ -38,11 +39,20 @@ def register_service(body: ServiceIn, session: Session = Depends(get_session),
     if created:
         svc = Service(name=body.name, repo_path=body.repo_path)
         session.add(svc)
-    for field, value in body.model_dump().items():
+    for field, value in body.model_dump(exclude={"github_repo"}).items():
         if field == "log_path" and svc.log_path != value:
             svc.collector_offset = 0
         setattr(svc, field, value)
     session.flush()
+    repo_link = body.github_repo or settings.github_repo
+    if repo_link:
+        try:
+            repo_link = normalize_repo(repo_link)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc))
+        link = session.scalar(select(ServiceGitHub).where(ServiceGitHub.service_id == svc.id))             or ServiceGitHub(service_id=svc.id, repo=repo_link)
+        link.repo = repo_link
+        session.add(link)
     audit.record(session, "service_registered" if created else "service_updated", client.actor, service=svc.name)
     return ser.service(svc)
 

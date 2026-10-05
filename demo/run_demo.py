@@ -41,6 +41,28 @@ PROD_PORT = 8101
 PROD_URL = f"http://127.0.0.1:{PROD_PORT}"
 
 
+def _push_history_to_github() -> None:
+    """Optional: mirror the freshly built demo history to the GitHub repo in backend/.env.
+
+    Uses a force-push because --fresh rebuilds the history from scratch. Only ever pointed at the
+    dedicated demo repository (AION_GITHUB_REPO); skip with --no-github.
+    """
+    env = dotenv_values(ROOT / "backend" / ".env")
+    token = os.getenv("AION_GITHUB_TOKEN") or env.get("AION_GITHUB_TOKEN")
+    repo = os.getenv("AION_GITHUB_REPO") or env.get("AION_GITHUB_REPO")
+    if not (token and repo):
+        return
+    from aion.integrations.github import GitHub, GitHubError
+
+    gh = GitHub(token, repo)
+    try:
+        gh.push(REPO, "main:refs/heads/main", force=True)
+    except GitHubError as exc:
+        print(f"[demo] WARNING: could not push the demo history to GitHub: {exc}")
+        return
+    print(f"[demo] pushed the demo history to https://github.com/{gh.repo} (GitHub Actions runs on it)")
+
+
 def _service_headers() -> dict:
     """The demo acts as a machine client (CI + log shipper): it uses AION's service token."""
     token = os.getenv("AION_SERVICE_TOKEN") or dotenv_values(ROOT / "backend" / ".env").get("AION_SERVICE_TOKEN")
@@ -50,7 +72,7 @@ def _service_headers() -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def setup(aion: str, fresh: bool, scenario: str) -> None:
+def setup(aion: str, fresh: bool, scenario: str, push_to_github: bool = True) -> None:
     if fresh or not (REPO / ".git").exists():
         print(f"[demo] scenario '{scenario}': {load_scenario(scenario).title}")
         print(f"[demo] building git repository at {REPO}")
@@ -59,6 +81,8 @@ def setup(aion: str, fresh: bool, scenario: str) -> None:
             print(f"        {c.sha[:7]}  {c.message.splitlines()[0]}" + (f"   <- deployed as {c.deploy_version}" if c.deploy_version else ""))
         if LOG_FILE.exists():
             LOG_FILE.unlink()
+        if push_to_github:
+            _push_history_to_github()
         register(aion)
         for c in commits:
             if c.deploy_version:
@@ -189,6 +213,7 @@ def main() -> None:
     ap.add_argument("--scenario", default=DEFAULT_SCENARIO, choices=list_scenarios(),
                     help=f"which bug scenario to build (default: {DEFAULT_SCENARIO}); applies with --fresh")
     ap.add_argument("--list", action="store_true", help="list scenarios and exit")
+    ap.add_argument("--no-github", action="store_true", help="don't push the demo history to GitHub")
     ap.add_argument("--incident-after", type=float, default=45, help="seconds of normal traffic before the bug is hit")
     ap.add_argument("--rate", type=float, default=4.0, help="requests per second")
     ap.add_argument("--duration", type=float, default=None, help="stop after N seconds (default: run until Ctrl+C)")
@@ -203,7 +228,7 @@ def main() -> None:
     except httpx.HTTPError:
         sys.exit(f"[demo] AION is not reachable at {args.aion}. Start it first: backend\\.venv\\Scripts\\python -m aion")
 
-    setup(args.aion, args.fresh, args.scenario)
+    setup(args.aion, args.fresh, args.scenario, push_to_github=not args.no_github)
     broken = [tuple(t) for t in load_scenario(args.scenario).trigger]
     runtime = ProductionRuntime()
     runtime.start()

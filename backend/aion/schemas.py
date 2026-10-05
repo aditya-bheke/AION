@@ -17,6 +17,7 @@ class ServiceIn(BaseModel):
                                    description="argv to start the service; may use {python} and {port}")
     health_path: str = "/health"
     production_url: Optional[str] = None
+    github_repo: Optional[str] = Field(default=None, description="owner/name; enables pull requests + Actions")
 
 
 class IngestIn(BaseModel):

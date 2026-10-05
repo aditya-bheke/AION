@@ -163,3 +163,15 @@ If no agent answers within `AION_MCP_TASK_TIMEOUT` (default 900 s), AION falls b
 ## Rolling back a fix (Phase 5)
 
 On a **resolved** incident an approver sees **Roll back this fix**. AION reverts the fix commit on `main` (a new commit — history is kept), the demo's GitOps controller redeploys it, and AION checks that production reports the revert commit; the incident becomes **Rolled back** (the original bug is back, so new errors attach to it; you can re-run the investigation or close it). If a deployment fails its post-deploy verification, AION rolls it back automatically (`AION_AUTO_ROLLBACK=true`).
+
+## GitHub pull requests + Actions (Phase 5)
+
+1. Create an **empty** GitHub repository and a **fine-grained token** limited to it with *Contents*, *Pull requests*, *Workflows*: Read and write, and *Actions*: Read-only.
+2. Add to `backend\.env` (restart AION afterwards):
+   ```
+   AION_GITHUB_TOKEN=github_pat_...
+   AION_GITHUB_REPO=your-user/your-repo
+   ```
+3. `run_demo.py --fresh` now pushes the demo history (with its GitHub Actions workflow) to that repo (`--no-github` to skip).
+4. When a fix passes AION's validation, AION opens a **pull request**; its page shows the PR link and the Actions status. **Approve** unlocks only when Actions passes (`AION_REQUIRE_GITHUB_CI=true`).
+5. **Deploy** fast-forwards GitHub `main` to the validated commit — GitHub marks the PR *merged* — then production. Never merge AION PRs by hand.

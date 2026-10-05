@@ -34,6 +34,9 @@ def aion_env(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "auto_pipeline", False)
     monkeypatch.setattr(settings, "service_token", SERVICE_TOKEN)
     monkeypatch.setattr(settings, "agent_token", AGENT_TOKEN)
+    # Never let tests reach the real GitHub repo/token from backend/.env.
+    monkeypatch.setattr(settings, "github_token", "")
+    monkeypatch.setattr(settings, "github_repo", "")
     monkeypatch.setattr(settings, "secret_key", TEST_SECRET_KEY)
     monkeypatch.setattr(settings, "password_iterations", 1000)  # fast hashing in tests only
     monkeypatch.setattr(settings, "required_approvals", 1)

@@ -12,11 +12,12 @@ from aion.api import serializers as ser
 from aion.db import get_session
 from aion.gitops.repo import GitRepo
 from aion.lifecycle import RERUNNABLE_STATES, InvalidTransition, Status, transition
-from aion.models import (AITask, Approval, AuditEvent, CommitSuspect, Deployment, Incident, LogEvent, LogSignature,
+from aion.models import (utcnow, AITask, Approval, AuditEvent, CommitSuspect, Deployment, Incident, LogEvent, LogSignature,
                          PatchProposal, RCAReport, Service, ValidationRun)
 from aion.pipeline.worker import enqueue_deploy, enqueue_pipeline, enqueue_rollback, worker
 from aion.remediation.service import worktree_path
 from aion.config import settings
+from aion.integrations.github_flow import ci_gate, latest_pr, refresh_pull_request
 from aion.schemas import DecisionIn
 from aion.security import Principal, require_role
 
@@ -49,6 +50,15 @@ def list_incidents(status: str | None = None, limit: int = 100, session: Session
 def get_incident(incident_id: int, session: Session = Depends(get_session)):
     inc = _incident_or_404(session, incident_id)
     svc = session.get(Service, inc.service_id)
+    pr = latest_pr(session, inc.id)
+    # Refresh from GitHub while CI is running, and after deployment until GitHub reports the PR
+    # merged (GitHub detects the fast-forward asynchronously).
+    if pr and pr.state == "open" and (pr.ci_state in ("none", "pending") or inc.status in ("resolved", "rolled_back")) and (
+            pr.ci_checked_at is None or (utcnow() - pr.ci_checked_at).total_seconds() > settings.github_poll_seconds):
+        session.commit()
+        refresh_pull_request(pr.id)   # GitHub Actions status, fetched lazily while someone is looking
+        session.expire_all()
+        pr = latest_pr(session, inc.id)
     rca = session.scalar(select(RCAReport).where(RCAReport.incident_id == inc.id).order_by(RCAReport.id.desc()))
     patches = session.scalars(select(PatchProposal).where(PatchProposal.incident_id == inc.id)
                               .order_by(PatchProposal.id)).all()
@@ -70,6 +80,10 @@ def get_incident(incident_id: int, session: Session = Depends(get_session)):
         "approvals": [ser.approval(a) for a in approvals],
         "deployments": [ser.deployment(d) for d in deployments],
         "audit": [ser.audit_event(a) for a in audit_rows],
+        "pull_request": None if pr is None else {
+            "number": pr.number, "url": pr.url, "repo": pr.repo, "branch": pr.branch, "head_sha": pr.head_sha,
+            "state": pr.state, "ci_state": pr.ci_state, "ci_runs": pr.ci_runs, "patch_id": pr.patch_id,
+            "required": settings.require_github_ci},
         "ai_tasks": [{"task_id": t.id, "purpose": t.purpose, "status": t.status, "agent": t.agent,
                       "created_at": ser._ts(t.created_at)}
                      for t in session.scalars(select(AITask).where(AITask.incident_id == inc.id).order_by(AITask.id))],
@@ -131,6 +145,9 @@ def approve(incident_id: int, body: DecisionIn, session: Session = Depends(get_s
     patch = _latest_passed_patch(session, inc.id)
     if patch is None or not patch.commit_sha:
         raise HTTPException(409, "No validated patch to approve")
+    blocked = ci_gate(session, inc.id, patch)
+    if blocked:
+        raise HTTPException(409, blocked)
     existing = approvals_for(session, patch)
     if any(a.approver == user.name for a in existing):
         raise HTTPException(409, "You have already approved this patch; a different approver is required")

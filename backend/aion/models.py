@@ -267,6 +267,36 @@ class AITask(Base):
     answered_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
 
 
+class ServiceGitHub(Base):
+    """Links a monitored service to its GitHub repository (owner/name)."""
+
+    __tablename__ = "service_github"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"), unique=True)
+    repo: Mapped[str] = mapped_column(String(200))
+
+
+class PullRequest(Base):
+    """The GitHub pull request opened for a validated patch, and its GitHub Actions status."""
+
+    __tablename__ = "pull_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incident_id: Mapped[int] = mapped_column(ForeignKey("incidents.id"), index=True)
+    patch_id: Mapped[int] = mapped_column(ForeignKey("patch_proposals.id"))
+    repo: Mapped[str] = mapped_column(String(200))
+    number: Mapped[int] = mapped_column(Integer)
+    url: Mapped[str] = mapped_column(String(500))
+    branch: Mapped[str] = mapped_column(String(200))
+    head_sha: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(20), default="open")        # open | merged | closed
+    ci_state: Mapped[str] = mapped_column(String(20), default="none")     # none | pending | success | failure
+    ci_runs: Mapped[list] = mapped_column(JSON, default=list)
+    ci_checked_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
 class AuditEvent(Base):
     """Append-only audit trail. No API exists to update or delete rows."""
 

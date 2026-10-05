@@ -42,6 +42,7 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-34](#d-34-choose-the-ai-provider-in-the-dashboard-with-encrypted-api-keys) | AI provider chosen in the dashboard, encrypted API keys | AI / Security | Accepted |
 | [D-35](#d-35-mcp-connector-external-ai-agents-answer-aions-model-calls-as-tasks) | MCP connector: external AI agents answer model calls as tasks | AI / Integration | Accepted |
 | [D-36](#d-36-rollback-by-revert-commit-manual-and-automatic) | Rollback by revert commit (manual and automatic) | Deployment | Accepted |
+| [D-37](#d-37-github-pull-requests-and-actions-as-an-extra-ci-gate) | GitHub pull requests + Actions as an extra CI gate | CI/CD | Accepted |
 
 ---
 
@@ -965,3 +966,33 @@ C (`deploy/deployer.py::rollback`, `pipeline/orchestrator.py::run_rollback`, `PO
 
 ## Future Reconsideration
 Canary deployments with metric-based automatic rollback.
+
+---
+
+# Decision: D-37 GitHub pull requests and Actions as an extra CI gate
+
+Date: 2026-10-05
+Status: Accepted (extends D-19, D-22)
+Area: CI/CD
+
+## Context
+AION validated fixes only with its local runner; teams review and test changes in pull requests on GitHub, with GitHub Actions as CI.
+
+## Options Considered
+- A. Keep local validation only.
+- B. Let GitHub merge the PR (merge/squash/rebase button or API) — creates a new commit that nobody validated, breaking "the approved commit is the deployed commit" (D-21, D-22).
+- C. Open a PR for the validated commit, use GitHub Actions on it as an **additional** gate, and deploy by **fast-forwarding** GitHub's `main` to the validated commit with a normal push; GitHub then marks the PR merged automatically.
+
+## Decision
+C (`integrations/github.py`, `integrations/github_flow.py`). After local validation: push `aion/incident-<id>-a<n>`, open a PR (root cause, validation table, "do not merge manually"). CI status = GitHub Actions workflow runs for the PR's head commit (Actions API; fine-grained tokens don't offer the Checks permission). With `AION_REQUIRE_GITHUB_CI=true` (default) approval **and** deployment are blocked until CI succeeds. Deployment pushes the commit to GitHub `main` first (non-force — rejected if `main` moved, which blocks the deployment), then the local production branch. Rollback pushes the revert commit too. A service is linked by `github_repo` at registration (or `AION_GITHUB_REPO`); accepted forms include `owner/name.git` and URLs. Token: fine-grained PAT limited to one repository (Contents, Pull requests, Workflows: read/write; Actions: read), passed to git as an HTTP header for one command only (never stored in the repo config) and redacted from every error message.
+
+## Reason
+Same artefact everywhere (local validation, PR CI, production all on one SHA), familiar developer workflow (PR + Actions), and two independent CI signals instead of one.
+
+## Trade-offs
+− The token appears in the local `git` process arguments during a push (local machine only).
+− Branch protection rules that forbid direct pushes to `main` would block deployment (by design: then GitHub, not AION, is the deployer).
+− CI status is refreshed lazily while someone views the incident (no webhook server yet).
+
+## Future Reconsideration
+GitHub App with webhooks instead of a PAT and polling; required status checks + merge queue.

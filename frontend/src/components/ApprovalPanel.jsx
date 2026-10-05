@@ -63,6 +63,17 @@ export default function ApprovalPanel({ detail, onChange }) {
     );
   }
 
+  const pr = detail.pull_request;
+  const ciIcon = { success: "✓", failure: "✕", pending: "⏳", none: "⏳" };
+  const prLine = pr && (
+    <p className="small">
+      GitHub: <a href={pr.url} target="_blank" rel="noreferrer">PR #{pr.number}</a> ({pr.state}) · Actions{" "}
+      <b>{ciIcon[pr.ci_state]} {pr.ci_state}</b>
+      {(pr.ci_runs || []).map((r, i) => <span key={i}> · <a href={r.url} target="_blank" rel="noreferrer">{r.name}</a></span>)}
+    </p>
+  );
+  const ciBlocks = pr && pr.required && pr.patch_id === patch?.id && pr.ci_state !== "success";
+
   if (s === "awaiting_approval" && patch) {
     const lastVal = validations[validations.length - 1];
     const iApproved = approvedBy.some((a) => a.approver === user.username);
@@ -74,6 +85,8 @@ export default function ApprovalPanel({ detail, onChange }) {
           passed all {lastVal?.steps?.filter((x) => x.status === "passed").length ?? 0} blocking validation checks.
           Review the root cause, the diff and the validation results below. Approving binds your decision to this exact commit.
         </p>
+        {prLine}
+        {ciBlocks && <p className="small"><b>Approval unlocks when GitHub Actions passes on the pull request.</b></p>}
         {required > 1 && (
           <p><b>Two-person rule:</b> {approvedBy.length} of {required} approvals
             {approvedBy.length > 0 && <> ({approvedBy.map((a) => a.approver).join(", ")})</>}.</p>
@@ -83,7 +96,7 @@ export default function ApprovalPanel({ detail, onChange }) {
             {identity}
             {commentField}
             <div className="btn-row">
-              <button className="btn primary" disabled={busy || iApproved} onClick={() => act(() => api.approve(incident.id, comment))}>
+              <button className="btn primary" disabled={busy || iApproved || ciBlocks} onClick={() => act(() => api.approve(incident.id, comment))}>
                 {iApproved ? "You approved — waiting for another approver" : "Approve patch"}
               </button>
               <button className="btn danger" disabled={busy} onClick={() => act(() => api.reject(incident.id, comment))}>Reject</button>
@@ -162,6 +175,7 @@ export default function ApprovalPanel({ detail, onChange }) {
           Deployment <b>{dep?.version}</b> (<Sha sha={dep?.commit_sha} />) by <b>{dep?.deployed_by}</b>.
           Approved by <b>{approvedBy.map((a) => a.approver + (a.comment ? ` (“${a.comment}”)` : "")).join(", ")}</b>.
         </p>
+        {prLine}
         {canDecide && (
           <>
             {commentField}

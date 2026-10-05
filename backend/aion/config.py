@@ -75,6 +75,15 @@ class Settings:
     test_timeout_seconds: int = field(default_factory=lambda: _int("AION_TEST_TIMEOUT", 180))
     staging_port: int = field(default_factory=lambda: _int("AION_STAGING_PORT", 8201))
 
+    # --- GitHub (pull requests + Actions as an extra CI gate) ---
+    github_token: str = field(default_factory=lambda: os.getenv("AION_GITHUB_TOKEN", ""))
+    # Repository linked to services registered without an explicit github_repo (demo convenience).
+    github_repo: str = field(default_factory=lambda: os.getenv("AION_GITHUB_REPO", ""))
+    # Block approval/deployment until GitHub Actions succeed on the pull request.
+    require_github_ci: bool = field(default_factory=lambda: _bool("AION_REQUIRE_GITHUB_CI", True))
+    # How often (seconds) the dashboard refreshes CI status from GitHub while it is pending.
+    github_poll_seconds: int = field(default_factory=lambda: _int("AION_GITHUB_POLL", 15))
+
     # --- security ---
     # Shared secret for machine clients (log shippers, CI, the demo driver). Required for
     # POST /api/services, /api/deployments and /api/ingest/*. Empty = machine endpoints disabled.

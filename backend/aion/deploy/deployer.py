@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from aion.ai.context import failing_request_samples
 from aion.config import settings
 from aion.gitops.repo import GitError, GitRepo
+from aion.integrations.github_flow import ci_gate, push_production
 from aion.models import Approval, Deployment, Incident, PatchProposal, Service, ValidationRun
 
 
@@ -59,6 +60,9 @@ def preflight(session: Session, incident: Incident, patch: PatchProposal) -> App
                                 .order_by(ValidationRun.id.desc()))
     if validation is None or validation.status != "passed":
         raise DeploymentBlocked("The patch has not passed validation")
+    blocked = ci_gate(session, incident.id, patch)
+    if blocked:
+        raise DeploymentBlocked(blocked)
     return approval
 
 
@@ -75,6 +79,11 @@ def deploy(session: Session, incident: Incident, service: Service, patch: PatchP
         raise DeploymentBlocked(
             f"Production branch moved since validation (now {head[:7]}, patch based on {patch.base_sha[:7]}); "
             "the patch must be regenerated and re-validated")
+    # GitHub first (if linked): fast-forward its production branch to exactly this commit. A non-ff
+    # (someone changed main on GitHub) is rejected and blocks the deployment.
+    err = push_production(service, patch.commit_sha)
+    if err:
+        raise DeploymentBlocked(f"GitHub rejected the deployment push: {err}")
     try:
         repo.merge_ff_only(patch.branch)
     except GitError as exc:
@@ -172,9 +181,11 @@ def rollback(session: Session, incident: Incident, service: Service, actor: str,
         repo.git("revert", "--abort", check=False)
         raise DeploymentBlocked(f"git revert of {dep.commit_sha[:7]} does not apply cleanly: {exc}") from exc
     head = repo.rev_parse(service.production_branch)
+    gh_err = push_production(service, head)  # keep GitHub's main in step (best effort, reported)
     rb = Deployment(service_id=service.id, environment="production", version=f"rollback-incident-{incident.id}",
                     commit_sha=head, deployed_by=actor, incident_id=incident.id, status="verifying",
-                    notes=f"Rollback of {dep.version} ({dep.commit_sha[:7]})")
+                    notes=f"Rollback of {dep.version} ({dep.commit_sha[:7]})"
+                          + (f"; GitHub push failed: {gh_err}" if gh_err else ""))
     session.add(rb)
     session.flush()
     if not service.production_url:

@@ -29,7 +29,8 @@ from aion.db import session_scope
 from aion.gitops.correlation import DeploymentInfo, correlate
 from aion.gitops.repo import GitRepo
 from aion.lifecycle import Status, transition
-from aion.models import CommitSuspect, Deployment, Incident, LogEvent, PatchProposal, RCAReport, Service, ValidationRun, utcnow
+from aion.models import PullRequest, CommitSuspect, Deployment, Incident, LogEvent, PatchProposal, RCAReport, Service, ValidationRun, utcnow
+from aion.integrations.github_flow import open_pull_request, refresh_pull_request
 from aion.remediation.service import create_patch, worktree_path
 from aion.validation.runner import ValidationRunner, ValidationTarget
 
@@ -226,6 +227,9 @@ def _run(incident_id: int) -> None:
             if passed:
                 transition(session, incident, Status.AWAITING_APPROVAL, "system:pipeline", patch_id=patch.id,
                            note="Validated patch is ready. Production deployment requires human approval.")
+                session.commit()
+                # If the service is linked to GitHub: push the branch, open a PR, let Actions run.
+                open_pull_request(incident_id, patch_id)
                 return
             feedback = _feedback_from(steps)
             if not last:
@@ -240,6 +244,7 @@ def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
     from aion.deploy.deployer import DeploymentBlocked, deploy
 
     auto = False  # set when the fix reached production but failed verification
+    pr_id = None
     with session_scope() as session:
         incident = session.get(Incident, incident_id)
         service = session.get(Service, incident.service_id)
@@ -270,6 +275,9 @@ def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
                      commit=patch.commit_sha, message=outcome.message, checks=outcome.verification)
         if outcome.success:
             transition(session, incident, Status.RESOLVED, "system:deployer", deployment_id=outcome.deployment_id)
+            pr = session.scalar(select(PullRequest).where(PullRequest.incident_id == incident_id)
+                                .order_by(PullRequest.id.desc()))
+            pr_id = pr.id if pr else None
             # The fix is on the production branch now; its isolated checkouts are no longer needed.
             for p in session.scalars(select(PatchProposal).where(PatchProposal.incident_id == incident_id)):
                 GitRepo(service.repo_path).remove_worktree(worktree_path(service, incident_id, p.attempt))
@@ -285,6 +293,8 @@ def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
                 auto = True
     if auto:
         run_rollback(incident_id, "system:auto-rollback")
+    elif pr_id is not None:
+        refresh_pull_request(pr_id)  # GitHub now reports the PR as merged
 
 
 def run_rollback(incident_id: int, actor: str) -> None:

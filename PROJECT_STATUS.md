@@ -7,7 +7,7 @@ _Last updated: 2026-10-04_
 
 | | |
 |---|---|
-| Backend tests | 79 passing (incl. real Docker sandbox test when Docker Desktop is running) (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
+| Backend tests | 83 passing (incl. real Docker sandbox test when Docker Desktop is running) (`cd backend; .venv\Scripts\python -m pytest -q`, ~30 s) |
 | Live demo | verified: incident detected → awaiting approval in ~4 s; approve + deploy → verified + resolved in ~2 s |
 | AI mode on this machine | local LLM: Ollama + qwen2.5-coder:7b (on D:), via `backend/.env`; start it with `scripts\start-ollama.ps1` |
 | Evaluation (4 scenarios) | heuristic: 4/4 reach approval gate, RCA 3/3 · local LLM: 3/4, RCA 2/3 (AI patches fail validation; revert fallback rescues 2) — `docs/EVALUATION.md` |
@@ -25,12 +25,13 @@ _Last updated: 2026-10-04_
 - Deployment: preflight checks, fast-forward merge, verification of running commit + replay on production.
 - Audit trail; React dashboard; demo service + GitOps controller; documentation system.
 - Phase 2: local LLM (portable Ollama on D:), 4 bug scenarios, evaluation harness + results, dependency-overlap correlation signal, indentation-only edit repair, revert fallback after failed AI patches.
+- Phase 5 (part 2): GitHub pull requests for validated fixes, GitHub Actions as an approval/deploy gate, fast-forward deployment to GitHub `main`, demo history pushed to GitHub.
 - Phase 5 (part 1): manual and automatic rollback (`rolling_back` / `rolled_back` states, revert commit, runtime verification).
 - Phase 4: AI provider chosen in the dashboard with encrypted API keys and presets (Claude, OpenAI, Groq, OpenRouter, Gemini, Ollama, LM Studio, custom); MCP connector (`python -m aion.mcp_server`, agent token, task bridge, no approve/deploy tools); pipeline no longer holds a DB write lock during model calls.
 - Phase 3: sign-in with roles (viewer/engineer/approver/admin), PBKDF2 passwords, hashed session tokens, login lockout, service token for machine clients, optional two-person approval, approver identity from the session; secret/PII redaction before prompting; fail-closed Docker sandbox for validation; admin CLI.
 
 ## Currently being worked on
-**Phase 5 — safer production changes: part 1 (rollback) complete.** Approvers can roll back a deployed fix (revert commit → redeploy → verify); a fix that fails post-deploy verification is rolled back automatically. Verified live. Part 2 (GitHub pull requests + Actions) is next and needs a GitHub repository and token.
+**Phase 5 — safer production changes: complete.** (1) Manual and automatic rollback. (2) GitHub: each validated fix becomes a pull request; GitHub Actions on the PR must pass before approval and deployment; deploying fast-forwards GitHub `main` to the validated commit and GitHub marks the PR merged. Both verified live (PR #1 on `aditya-bheke/aion-demo-orders-service`).
 
 **Phase 4 — AI connectivity: complete.** Choose the AI from the dashboard: API-key providers (Claude, OpenAI, Groq, OpenRouter, Gemini, custom), local LLMs (Ollama, LM Studio) or the **MCP connector** (an AI app such as Claude Code answers AION's analysis tasks). Verified live: an AI connected over MCP produced the root cause and a fix that passed all validation; a human approved and deployed it. Details: `docs/logs/2026-10-05-07-phase4-ai-connectivity.md`.
 
