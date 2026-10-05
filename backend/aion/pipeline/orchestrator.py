@@ -239,6 +239,7 @@ def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
     """Deploy the approved patch. Only reachable from state DEPLOYING (set by the human-approval API)."""
     from aion.deploy.deployer import DeploymentBlocked, deploy
 
+    auto = False  # set when the fix reached production but failed verification
     with session_scope() as session:
         incident = session.get(Incident, incident_id)
         service = session.get(Service, incident.service_id)
@@ -275,3 +276,41 @@ def run_deploy(incident_id: int, deployed_by: str = "human:unknown") -> None:
         else:
             incident.pipeline_error = outcome.message
             transition(session, incident, Status.DEPLOY_FAILED, "system:deployer", reason=outcome.message)
+            # The fix reached production but production does not verify: restore the version that
+            # was running before (the state humans had accepted), unless disabled.
+            if settings.auto_rollback and outcome.deployment_id is not None:
+                transition(session, incident, Status.ROLLING_BACK, "system:deployer",
+                           reason="automatic rollback after failed production verification")
+                session.commit()
+                auto = True
+    if auto:
+        run_rollback(incident_id, "system:auto-rollback")
+
+
+def run_rollback(incident_id: int, actor: str) -> None:
+    """Revert the deployed AION fix. Only reachable from state ROLLING_BACK."""
+    from aion.deploy.deployer import DeploymentBlocked, rollback
+
+    with session_scope() as session:
+        incident = session.get(Incident, incident_id)
+        service = session.get(Service, incident.service_id)
+        if incident.status != Status.ROLLING_BACK.value:
+            audit.record(session, "rollback_blocked", "system:deployer", incident_id=incident_id,
+                         reason=f"incident is {incident.status}")
+            return
+        try:
+            outcome = rollback(session, incident, service, actor)
+        except (DeploymentBlocked, Exception) as exc:  # any failure leaves a clear, re-runnable state
+            log.exception("rollback failed for incident %s", incident_id)
+            incident.pipeline_error = f"Rollback failed: {exc}"
+            audit.record(session, "rollback_failed", "system:deployer", incident_id=incident_id, error=str(exc)[:500])
+            transition(session, incident, Status.ERROR, "system:deployer", reason=f"rollback failed: {str(exc)[:200]}")
+            return
+        audit.record(session, "rollback_completed" if outcome.success else "rollback_verification_failed",
+                     actor, incident_id=incident_id, deployment_id=outcome.deployment_id, message=outcome.message)
+        if outcome.success:
+            incident.pipeline_error = None
+            transition(session, incident, Status.ROLLED_BACK, "system:deployer", deployment_id=outcome.deployment_id)
+        else:
+            incident.pipeline_error = outcome.message
+            transition(session, incident, Status.ERROR, "system:deployer", reason=outcome.message)

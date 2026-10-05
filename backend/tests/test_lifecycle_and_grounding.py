@@ -12,9 +12,11 @@ def test_no_path_to_deployment_without_approval():
     assert not can_transition("validating", Status.APPROVED)
 
 
-@pytest.mark.parametrize("terminal", [Status.RESOLVED, Status.REJECTED])
-def test_terminal_states(terminal):
-    assert ALLOWED_TRANSITIONS[terminal] == set()
+def test_terminal_states():
+    assert ALLOWED_TRANSITIONS[Status.REJECTED] == set()
+    # A resolved incident can only be rolled back; rollback can only end rolled back (or in error).
+    assert ALLOWED_TRANSITIONS[Status.RESOLVED] == {Status.ROLLING_BACK}
+    assert ALLOWED_TRANSITIONS[Status.ROLLING_BACK] == {Status.ROLLED_BACK, Status.ERROR}
 
 
 PACK = {

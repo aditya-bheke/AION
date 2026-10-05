@@ -21,7 +21,8 @@ log = logging.getLogger("aion")
 
 # States whose job lives only in memory; after a restart that job is gone.
 _INTERRUPTIBLE = {Status.ANALYZING: Status.ERROR, Status.PATCHING: Status.ERROR,
-                  Status.VALIDATING: Status.ERROR, Status.DEPLOYING: Status.DEPLOY_FAILED}
+                  Status.VALIDATING: Status.ERROR, Status.DEPLOYING: Status.DEPLOY_FAILED,
+                  Status.ROLLING_BACK: Status.ERROR}
 
 
 def _recover_interrupted_jobs() -> None:

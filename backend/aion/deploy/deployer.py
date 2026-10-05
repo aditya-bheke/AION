@@ -101,20 +101,8 @@ def verify_production(session: Session, incident: Incident, service: Service, co
         return True, "Merged to production branch (no production URL registered, runtime verification skipped)", []
     base = service.production_url.rstrip("/")
     checks: list[dict[str, Any]] = []
-    deadline = time.monotonic() + timeout
-    running = None
-    while time.monotonic() < deadline:
-        try:
-            r = httpx.get(base + service.health_path, timeout=3)
-            if r.status_code == 200:
-                running = (r.json() or {}).get("commit") if "json" in r.headers.get("content-type", "") else None
-                # Services that report their commit let us confirm the reload actually happened.
-                if running is None or str(running).startswith(commit_sha[:7]) or commit_sha.startswith(str(running)):
-                    break
-        except (httpx.HTTPError, ValueError):
-            pass
-        time.sleep(1.0)
-    else:
+    up, running = wait_for_commit(service, commit_sha, timeout)
+    if not up:
         return False, f"Production did not come up on the new commit within {timeout:.0f}s (running: {running})", checks
     checks.append({"check": "health", "ok": True, "detail": f"healthy, running commit {running or 'unknown'}"})
 
@@ -135,3 +123,68 @@ def verify_production(session: Session, incident: Incident, service: Service, co
     if failures:
         return False, f"{failures} previously failing request(s) still fail in production", checks
     return True, "Production verified: healthy on the new commit and incident requests no longer fail", checks
+
+
+def wait_for_commit(service: Service, commit_sha: str, timeout: float) -> tuple[bool, Optional[str]]:
+    """Poll the health endpoint until the service reports `commit_sha` (or doesn't report a commit)."""
+    base = (service.production_url or "").rstrip("/")
+    deadline = time.monotonic() + timeout
+    running: Optional[str] = None
+    while time.monotonic() < deadline:
+        try:
+            r = httpx.get(base + service.health_path, timeout=3)
+            if r.status_code == 200:
+                running = (r.json() or {}).get("commit") if "json" in r.headers.get("content-type", "") else None
+                # Services that report their commit let us confirm the reload actually happened.
+                if running is None or str(running).startswith(commit_sha[:7]) or commit_sha.startswith(str(running)):
+                    return True, running
+        except (httpx.HTTPError, ValueError):
+            pass
+        time.sleep(1.0)
+    return False, running
+
+
+# ---- rollback --------------------------------------------------------------------------------
+def rollback(session: Session, incident: Incident, service: Service, actor: str,
+             verify_timeout: float = 45.0) -> DeployOutcome:
+    """Undo the AION fix that was deployed for `incident`.
+
+    `git revert` of the fix commit on the production branch (a new commit, so history is kept
+    and the rollback itself is auditable and reversible), then the same runtime check as a
+    deployment: production must report the new commit. The incident's failing requests are NOT
+    replayed - after a rollback the original bug is expected to be back.
+    """
+    dep = session.scalar(select(Deployment).where(Deployment.incident_id == incident.id,
+                                                  Deployment.version.like("aion-fix-%"))
+                         .order_by(Deployment.id.desc()))
+    if dep is None:
+        raise DeploymentBlocked("No AION deployment found for this incident - nothing to roll back")
+    repo = GitRepo(service.repo_path)
+    if repo.current_branch() != service.production_branch:
+        raise DeploymentBlocked(f"Production checkout is not on branch {service.production_branch!r}")
+    if repo.git("status", "--porcelain", "--untracked-files=no").strip():
+        raise DeploymentBlocked("Production checkout has uncommitted changes")
+    if not repo.is_ancestor(dep.commit_sha, repo.rev_parse(service.production_branch)):
+        raise DeploymentBlocked(f"The fix commit {dep.commit_sha[:7]} is not on {service.production_branch}")
+    try:
+        repo.git("revert", "--no-edit", dep.commit_sha)
+    except GitError as exc:
+        repo.git("revert", "--abort", check=False)
+        raise DeploymentBlocked(f"git revert of {dep.commit_sha[:7]} does not apply cleanly: {exc}") from exc
+    head = repo.rev_parse(service.production_branch)
+    rb = Deployment(service_id=service.id, environment="production", version=f"rollback-incident-{incident.id}",
+                    commit_sha=head, deployed_by=actor, incident_id=incident.id, status="verifying",
+                    notes=f"Rollback of {dep.version} ({dep.commit_sha[:7]})")
+    session.add(rb)
+    session.flush()
+    if not service.production_url:
+        rb.status = "succeeded"
+        return DeployOutcome(True, "Fix reverted on the production branch (no production URL; runtime check skipped)",
+                             rb.id)
+    up, running = wait_for_commit(service, head, verify_timeout)
+    rb.status = "succeeded" if up else "verification_failed"
+    check = [{"check": "health", "ok": up, "detail": f"running commit {running or 'unknown'}"}]
+    if not up:
+        return DeployOutcome(False, f"Production did not come up on the rollback commit within {verify_timeout:.0f}s",
+                             rb.id, check)
+    return DeployOutcome(True, f"Rolled back: production runs {head[:7]} (revert of {dep.commit_sha[:7]})", rb.id, check)

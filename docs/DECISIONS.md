@@ -41,6 +41,7 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-33](#d-33-fail-closed-docker-sandbox-for-validating-ai-written-code) | Fail-closed Docker sandbox for AI-written code | Security / Validation | Accepted |
 | [D-34](#d-34-choose-the-ai-provider-in-the-dashboard-with-encrypted-api-keys) | AI provider chosen in the dashboard, encrypted API keys | AI / Security | Accepted |
 | [D-35](#d-35-mcp-connector-external-ai-agents-answer-aions-model-calls-as-tasks) | MCP connector: external AI agents answer model calls as tasks | AI / Integration | Accepted |
+| [D-36](#d-36-rollback-by-revert-commit-manual-and-automatic) | Rollback by revert commit (manual and automatic) | Deployment | Accepted |
 
 ---
 
@@ -934,3 +935,33 @@ Required a fix found by the MCP end-to-end test: the pipeline used to call the m
 
 ## Future Reconsideration
 Add MCP sampling when clients support it widely; streamable-HTTP transport for remote agents; MCP resources for logs/diffs.
+
+---
+
+# Decision: D-36 Rollback by revert commit (manual and automatic)
+
+Date: 2026-10-05
+Status: Accepted (extends D-22)
+Area: Deployment
+
+## Context
+Once a fix is in production there was no way back except a manual `git revert`. And if production failed verification after a deployment, AION only reported `deploy_failed` and left the unverified fix running.
+
+## Options Considered
+- A. `git reset --hard` the production branch to the previous commit — rewrites history, breaks the audit trail and anyone else's clone.
+- B. Redeploy the previous Deployment's commit (move the branch back) — same history problem.
+- C. **`git revert` of the fix commit** on the production branch: a new commit whose tree equals the pre-fix tree; the GitOps controller redeploys it; AION verifies production reports the new commit.
+
+## Decision
+C (`deploy/deployer.py::rollback`, `pipeline/orchestrator.py::run_rollback`, `POST /api/incidents/{id}/rollback`).
+- **Manual:** an approver can roll back a `resolved` (or `deploy_failed`) incident, with a comment; audited as `human:<name>`.
+- **Automatic** (`AION_AUTO_ROLLBACK=true` by default): if the fix was merged but post-deploy verification fails, AION immediately reverts it — `deploy_failed → rolling_back → rolled_back`, audited as `system:auto-rollback`. Restoring the version that was running before AION's change needs no new approval: it is the state humans had already accepted.
+- New states `rolling_back`, `rolled_back`; `rolled_back` is *open* (the original bug is back, new errors attach) and can be re-investigated or closed. Rollback verification checks the running commit only — replaying the incident requests would (correctly) fail again.
+- Preconditions mirror deployment: production checkout on the production branch, clean, fix commit present on it; a revert that does not apply cleanly is blocked with a clear error.
+
+## Trade-offs
+− If other commits changed the same lines after the fix, the revert conflicts and a human must resolve it.
+− Automatic rollback reverts on *any* verification failure, including a slow restart; the timeout (45 s) is configurable in code.
+
+## Future Reconsideration
+Canary deployments with metric-based automatic rollback.

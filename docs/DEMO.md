@@ -159,3 +159,7 @@ API keys are **encrypted** in the database with `AION_SECRET_KEY` (created by `s
 5. AION validates, grounds and tests the answers as usual — then **you** approve and deploy in the dashboard. The MCP server has no approve/deploy tool.
 
 If no agent answers within `AION_MCP_TASK_TIMEOUT` (default 900 s), AION falls back to its deterministic analyzer.
+
+## Rolling back a fix (Phase 5)
+
+On a **resolved** incident an approver sees **Roll back this fix**. AION reverts the fix commit on `main` (a new commit — history is kept), the demo's GitOps controller redeploys it, and AION checks that production reports the revert commit; the incident becomes **Rolled back** (the original bug is back, so new errors attach to it; you can re-run the investigation or close it). If a deployment fails its post-deploy verification, AION rolls it back automatically (`AION_AUTO_ROLLBACK=true`).

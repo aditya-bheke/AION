@@ -119,6 +119,32 @@ export default function ApprovalPanel({ detail, onChange }) {
     );
   }
 
+  if (s === "rolling_back") {
+    return (
+      <div className="gate gate-busy">
+        <div className="gate-title"><span className="spinner" /> Rolling back the fix and verifying production…</div>
+      </div>
+    );
+  }
+
+  if (s === "rolled_back") {
+    const rb = [...deployments].reverse().find((d) => d.version.startsWith("rollback-"));
+    return (
+      <div className="gate gate-warn">
+        <div className="gate-title">↩ Rolled back — the fix was reverted in production</div>
+        <p>Rollback <b>{rb?.version}</b> (<Sha sha={rb?.commit_sha} />) by <b>{rb?.deployed_by}</b>. The original problem may be back;
+          new errors attach to this incident.</p>
+        {hasRole(user, "engineer") && (
+          <div className="btn-row">
+            <button className="btn" disabled={busy} onClick={() => act(() => api.rerun(incident.id))}>Re-run investigation</button>
+            {canDecide && <button className="btn danger" disabled={busy} onClick={() => act(() => api.reject(incident.id, "closed after rollback"))}>Close incident</button>}
+          </div>
+        )}
+        {err && <p className="error">{err}</p>}
+      </div>
+    );
+  }
+
   if (s === "deploying") {
     return (
       <div className="gate gate-busy">
@@ -136,6 +162,18 @@ export default function ApprovalPanel({ detail, onChange }) {
           Deployment <b>{dep?.version}</b> (<Sha sha={dep?.commit_sha} />) by <b>{dep?.deployed_by}</b>.
           Approved by <b>{approvedBy.map((a) => a.approver + (a.comment ? ` (“${a.comment}”)` : "")).join(", ")}</b>.
         </p>
+        {canDecide && (
+          <>
+            {commentField}
+            <div className="btn-row">
+              <button className="btn danger" disabled={busy}
+                      onClick={() => window.confirm("Revert this fix in production?") && act(() => api.rollback(incident.id, comment))}>
+                Roll back this fix
+              </button>
+            </div>
+          </>
+        )}
+        {err && <p className="error">{err}</p>}
       </div>
     );
   }

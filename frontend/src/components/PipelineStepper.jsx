@@ -22,12 +22,13 @@ function stages(d) {
     },
     {
       key: "approve", label: "Human approval",
-      state: after(["approved", "deploying", "resolved", "deploy_failed"]) ? "done"
+      state: after(["approved", "deploying", "resolved", "deploy_failed", "rolling_back", "rolled_back"]) ? "done"
         : s === "awaiting_approval" ? "waiting" : s === "rejected" ? "failed" : "todo",
     },
     {
       key: "deploy", label: "Production",
-      state: s === "resolved" ? "done" : s === "deploying" ? "active" : s === "deploy_failed" ? "failed" : "todo",
+      state: s === "resolved" ? "done" : ["deploying", "rolling_back"].includes(s) ? "active"
+        : ["deploy_failed", "rolled_back"].includes(s) ? "failed" : "todo",
     },
   ];
 }

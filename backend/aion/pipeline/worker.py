@@ -59,3 +59,9 @@ def enqueue_deploy(incident_id: int, deployed_by: str) -> bool:
     from aion.pipeline.orchestrator import run_deploy
 
     return worker.submit(f"deploy-{incident_id}", lambda: run_deploy(incident_id, deployed_by))
+
+
+def enqueue_rollback(incident_id: int, actor: str) -> bool:
+    from aion.pipeline.orchestrator import run_rollback
+
+    return worker.submit(f"rollback-{incident_id}", lambda: run_rollback(incident_id, actor))

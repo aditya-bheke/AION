@@ -11,3 +11,4 @@ Chronological record of meaningful milestones: what changed, how it was tested, 
 | 05 | 2026-10-04 | [Phase 2: local LLM on D:, scenarios, evaluation, fixes found by evaluation](2026-10-04-05-phase2-local-llm-and-evaluation.md) |
 | 06 | 2026-10-04 | [Phase 3: security — accounts & roles, two-person rule, prompt redaction, Docker sandbox](2026-10-04-06-phase3-security.md) |
 | 07 | 2026-10-05 | [Phase 4: AI connectivity — API keys, local LLM, MCP connector](2026-10-05-07-phase4-ai-connectivity.md) |
+| 08 | 2026-10-05 | [Phase 5 (part 1): manual and automatic rollback](2026-10-05-08-phase5-rollback.md) |

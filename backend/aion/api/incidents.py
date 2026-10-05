@@ -14,7 +14,7 @@ from aion.gitops.repo import GitRepo
 from aion.lifecycle import RERUNNABLE_STATES, InvalidTransition, Status, transition
 from aion.models import (AITask, Approval, AuditEvent, CommitSuspect, Deployment, Incident, LogEvent, LogSignature,
                          PatchProposal, RCAReport, Service, ValidationRun)
-from aion.pipeline.worker import enqueue_deploy, enqueue_pipeline, worker
+from aion.pipeline.worker import enqueue_deploy, enqueue_pipeline, enqueue_rollback, worker
 from aion.remediation.service import worktree_path
 from aion.config import settings
 from aion.schemas import DecisionIn
@@ -73,7 +73,8 @@ def get_incident(incident_id: int, session: Session = Depends(get_session)):
         "ai_tasks": [{"task_id": t.id, "purpose": t.purpose, "status": t.status, "agent": t.agent,
                       "created_at": ser._ts(t.created_at)}
                      for t in session.scalars(select(AITask).where(AITask.incident_id == inc.id).order_by(AITask.id))],
-        "job_running": any(k in worker.busy_keys() for k in (f"incident-{inc.id}", f"deploy-{inc.id}")),
+        "job_running": any(k in worker.busy_keys() for k in (f"incident-{inc.id}", f"deploy-{inc.id}",
+                                                                  f"rollback-{inc.id}")),
     }
 
 
@@ -157,6 +158,19 @@ def deploy(incident_id: int, session: Session = Depends(get_session),
     transition(session, inc, Status.DEPLOYING, user.actor)
     session.commit()
     enqueue_deploy(inc.id, user.actor)
+    return {"status": inc.status}
+
+
+@router.post("/{incident_id}/rollback")
+def rollback(incident_id: int, body: DecisionIn, session: Session = Depends(get_session),
+             user: Principal = Depends(require_role("approver"))):
+    """Revert a deployed AION fix (a production change, so it needs an approver)."""
+    inc = _incident_or_404(session, incident_id)
+    if inc.status not in (Status.RESOLVED.value, Status.DEPLOY_FAILED.value):
+        raise HTTPException(409, f"Only resolved or failed deployments can be rolled back (current: {inc.status})")
+    transition(session, inc, Status.ROLLING_BACK, user.actor, comment=body.comment)
+    session.commit()
+    enqueue_rollback(inc.id, user.actor)
     return {"status": inc.status}
 
 

@@ -29,6 +29,8 @@ class Status(str, Enum):
     DEPLOY_FAILED = "deploy_failed"
     REJECTED = "rejected"
     ERROR = "error"
+    ROLLING_BACK = "rolling_back"
+    ROLLED_BACK = "rolled_back"
 
 
 S = Status
@@ -44,16 +46,21 @@ ALLOWED_TRANSITIONS: dict[Status, set[Status]] = {
     S.VALIDATION_FAILED: {S.ANALYZING, S.REJECTED},
     S.APPROVED: {S.DEPLOYING, S.REJECTED},  # a human may still withdraw before deploying
     S.DEPLOYING: {S.RESOLVED, S.DEPLOY_FAILED},
-    S.DEPLOY_FAILED: {S.ANALYZING, S.REJECTED},
+    # A failed post-deploy verification may be rolled back automatically.
+    S.DEPLOY_FAILED: {S.ANALYZING, S.REJECTED, S.ROLLING_BACK},
     S.ERROR: {S.ANALYZING, S.REJECTED},
-    S.RESOLVED: set(),
+    # A deployed fix can be rolled back by an approver (revert commit, redeploy, verify).
+    S.RESOLVED: {S.ROLLING_BACK},
+    S.ROLLING_BACK: {S.ROLLED_BACK, S.ERROR},
+    # After a rollback the original bug is back in production: investigate again or close.
+    S.ROLLED_BACK: {S.ANALYZING, S.REJECTED},
     S.REJECTED: set(),
 }
 
 # States in which an incident is still "open" (new matching errors attach to it).
 OPEN_STATES = {s.value for s in Status if s not in (S.RESOLVED, S.REJECTED)}
 # States from which a human may restart the automated investigation.
-RERUNNABLE_STATES = {S.VALIDATION_FAILED, S.DEPLOY_FAILED, S.ERROR}
+RERUNNABLE_STATES = {S.VALIDATION_FAILED, S.DEPLOY_FAILED, S.ERROR, S.ROLLED_BACK}
 
 
 class InvalidTransition(Exception):

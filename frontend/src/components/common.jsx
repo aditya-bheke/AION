@@ -11,12 +11,15 @@ const STATUS_LABEL = {
   deploy_failed: "Deploy failed",
   rejected: "Rejected",
   error: "Pipeline error",
+  rolling_back: "Rolling back",
+  rolled_back: "Rolled back",
 };
 
 const STATUS_TONE = {
   detected: "info", analyzing: "busy", patching: "busy", validating: "busy",
   awaiting_approval: "warn", validation_failed: "bad", approved: "good", deploying: "busy",
   resolved: "good", deploy_failed: "bad", rejected: "muted", error: "bad",
+  rolling_back: "busy", rolled_back: "warn",
 };
 
 export function StatusBadge({ status }) {

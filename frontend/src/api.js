@@ -46,6 +46,7 @@ export const api = {
   reject: (id, comment) => request("POST", `/api/incidents/${id}/reject`, { comment }),
   deploy: (id) => request("POST", `/api/incidents/${id}/deploy`),
   rerun: (id) => request("POST", `/api/incidents/${id}/rerun`),
+  rollback: (id, comment) => request("POST", `/api/incidents/${id}/rollback`, { comment }),
   aiPresets: () => request("GET", "/api/ai/presets"),
   aiConfig: () => request("GET", "/api/ai/config"),
   saveAiConfig: (cfg) => request("PUT", "/api/ai/config", cfg),

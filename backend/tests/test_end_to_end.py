@@ -215,3 +215,51 @@ def test_revert_fallback_after_failed_ai_patches_still_needs_approval(client, de
     assert detail["incident"]["status"] == "awaiting_approval"  # still a human decision
     assert any(a["action"] == "revert_fallback" for a in detail["audit"])
     assert GitRepo(repo_dir).rev_parse("main") == commits[-1].sha  # production untouched
+
+
+def _deploy_heuristic_fix(client, demo_repo, tmp_path):
+    repo_dir, commits, incident_id = _setup(client, demo_repo, tmp_path)
+    orchestrator.run_pipeline(incident_id)
+    assert client.post(f"/api/incidents/{incident_id}/approve", json={"comment": "ok"}).status_code == 200
+    return repo_dir, commits, incident_id
+
+
+def test_manual_rollback_reverts_the_fix_and_reopens(client, demo_repo, tmp_path, monkeypatch):
+    monkeypatch.setattr("aion.api.incidents.enqueue_rollback", orchestrator.run_rollback)
+    repo_dir, commits, incident_id = _deploy_heuristic_fix(client, demo_repo, tmp_path)
+    client.post(f"/api/incidents/{incident_id}/deploy")
+    git = GitRepo(repo_dir)
+    fix = git.rev_parse("main")
+    assert client.get(f"/api/incidents/{incident_id}").json()["incident"]["status"] == "resolved"
+
+    viewer = make_user(client, "vic", "viewer")
+    assert client.post(f"/api/incidents/{incident_id}/rollback", json={}, headers=viewer).status_code == 403
+    r = client.post(f"/api/incidents/{incident_id}/rollback", json={"comment": "fix caused complaints"})
+    assert r.status_code == 200
+
+    detail = client.get(f"/api/incidents/{incident_id}").json()
+    assert detail["incident"]["status"] == "rolled_back"
+    head = git.rev_parse("main")
+    assert head != fix and git.git("diff", commits[-1].sha, head).strip() == ""  # back to the pre-fix tree
+    assert "Revert" in git.git("log", "-1", "--format=%s", head)  # history kept, rollback is a commit
+    rb = [d for d in detail["deployments"] if d["version"].startswith("rollback-")][0]
+    assert rb["deployed_by"] == "human:aditya" and rb["commit_sha"] == head
+    assert any(a["action"] == "rollback_completed" for a in detail["audit"])
+    # Rolled back = open again: the investigation can be re-run.
+    assert client.post(f"/api/incidents/{incident_id}/rerun").status_code == 200
+
+
+def test_failed_production_verification_rolls_back_automatically(client, demo_repo, tmp_path, monkeypatch):
+    monkeypatch.setattr("aion.deploy.deployer.verify_production",
+                        lambda *a, **k: (False, "simulated: production unhealthy after deploy", []))
+    repo_dir, commits, incident_id = _deploy_heuristic_fix(client, demo_repo, tmp_path)
+    client.post(f"/api/incidents/{incident_id}/deploy")
+    detail = client.get(f"/api/incidents/{incident_id}").json()
+    statuses = [a["details"].get("to_status") for a in detail["audit"] if a["action"] == "status_changed"]
+    assert statuses[-3:] == ["deploy_failed", "rolling_back", "rolled_back"]
+    assert git_tree_equal(GitRepo(repo_dir), commits[-1].sha, "main")
+    assert any(a["actor"] == "system:auto-rollback" and a["action"] == "rollback_completed" for a in detail["audit"])
+
+
+def git_tree_equal(git, a, b):
+    return git.git("diff", a, b).strip() == ""
