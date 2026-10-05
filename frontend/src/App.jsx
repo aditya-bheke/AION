@@ -5,6 +5,7 @@ import IncidentList from "./pages/IncidentList.jsx";
 import IncidentDetail from "./pages/IncidentDetail.jsx";
 import AuditLog from "./pages/AuditLog.jsx";
 import SystemPage from "./pages/SystemPage.jsx";
+import Insights from "./pages/Insights.jsx";
 import Login from "./pages/Login.jsx";
 import { UserContext } from "./auth.js";
 
@@ -35,6 +36,7 @@ function Shell({ user }) {
   if (incidentMatch) page = <IncidentDetail id={Number(incidentMatch[1])} />;
   else if (route.startsWith("/audit")) page = <AuditLog />;
   else if (route.startsWith("/system")) page = <SystemPage system={system} />;
+  else if (route.startsWith("/insights")) page = <Insights />;
   else page = <IncidentList />;
 
   const active = (prefix) => (route === prefix || (prefix !== "/" && route.startsWith(prefix)) ? "active" : "");
@@ -49,6 +51,7 @@ function Shell({ user }) {
         </a>
         <nav>
           <a href="#/" className={active("/") || (incidentMatch ? "active" : "")}>Incidents</a>
+          <a href="#/insights" className={active("/insights")}>Insights</a>
           <a href="#/audit" className={active("/audit")}>Audit trail</a>
           <a href="#/system" className={active("/system")}>System</a>
         </nav>

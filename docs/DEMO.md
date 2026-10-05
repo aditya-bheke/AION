@@ -175,3 +175,8 @@ On a **resolved** incident an approver sees **Roll back this fix**. AION reverts
 3. `run_demo.py --fresh` now pushes the demo history (with its GitHub Actions workflow) to that repo (`--no-github` to skip).
 4. When a fix passes AION's validation, AION opens a **pull request**; its page shows the PR link and the Actions status. **Approve** unlocks only when Actions passes (`AION_REQUIRE_GITHUB_CI=true`).
 5. **Deploy** fast-forwards GitHub `main` to the validated commit — GitHub marks the PR *merged* — then production. Never merge AION PRs by hand.
+
+## Notifications and Insights (Phase 6)
+
+- **System → Notifications** (admin): add a Slack incoming webhook, a Discord webhook or a generic JSON webhook, tick the events (e.g. *fix ready — approval needed*), **Send test**. Messages link straight to the incident (set `AION_PUBLIC_URL` if people open AION on another address). The URL is stored encrypted.
+- **Insights** (top menu): MTTD, time to validated fix, human decision time, deploy time and MTTR per incident and as medians, plus outcome counts — useful numbers for the report.

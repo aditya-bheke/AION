@@ -75,6 +75,10 @@ class Settings:
     test_timeout_seconds: int = field(default_factory=lambda: _int("AION_TEST_TIMEOUT", 180))
     staging_port: int = field(default_factory=lambda: _int("AION_STAGING_PORT", 8201))
 
+    # --- notifications ---
+    # Base URL used in notification links (where people open the dashboard).
+    public_url: str = field(default_factory=lambda: os.getenv("AION_PUBLIC_URL", "http://127.0.0.1:8000"))
+
     # --- GitHub (pull requests + Actions as an extra CI gate) ---
     github_token: str = field(default_factory=lambda: os.getenv("AION_GITHUB_TOKEN", ""))
     # Repository linked to services registered without an explicit github_repo (demo convenience).

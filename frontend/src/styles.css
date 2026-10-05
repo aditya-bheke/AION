@@ -235,3 +235,12 @@ h4 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spac
 .mcp-help { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
 .mcp-help p { margin: 4px 0; }
 .ok-text { color: var(--good); }
+
+/* ---- insights & notifications ---- */
+.kpis.wrap { flex-wrap: wrap; margin-bottom: 16px; }
+.kpi.metric { min-width: 150px; text-align: left; padding: 10px 14px; }
+.kpi.metric small { display: block; font-size: 11px; }
+.channel-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.btn-row.inline { margin: 0 0 0 auto; }
+.channel-form { margin-top: 12px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 12px; font-size: 13px; }

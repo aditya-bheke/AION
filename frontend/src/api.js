@@ -52,4 +52,11 @@ export const api = {
   saveAiConfig: (cfg) => request("PUT", "/api/ai/config", cfg),
   resetAiConfig: () => request("DELETE", "/api/ai/config"),
   testAi: () => request("POST", "/api/ai/test"),
+  insights: () => request("GET", "/api/insights"),
+  channels: () => request("GET", "/api/notifications/channels"),
+  notifEvents: () => request("GET", "/api/notifications/events"),
+  deliveries: () => request("GET", "/api/notifications/deliveries"),
+  addChannel: (c) => request("POST", "/api/notifications/channels", c),
+  testChannel: (id) => request("POST", `/api/notifications/channels/${id}/test`),
+  disableChannel: (id) => request("DELETE", `/api/notifications/channels/${id}`),
 };

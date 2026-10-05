@@ -29,7 +29,9 @@ Watch the incident appear in the dashboard, review it, approve, deploy. Full dem
 
 **AI mode:** choose it in the dashboard (**System → AI provider**, admin): an **API key** for Claude / OpenAI / Groq / OpenRouter / Gemini (stored encrypted), a **local LLM** (Ollama, LM Studio), or the **MCP connector**, where an AI app you already use — e.g. Claude Code via `python -m aion.mcp_server` — answers AION's analysis tasks. Without any AI, AION runs a clearly labelled deterministic analyzer and proposes a `git revert`. Whatever the AI, its output is validated, grounded and tested, and a human approves.
 
-**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (78 tests, including full end-to-end workflow, security and MCP connector tests).
+**Tests:** `cd backend; .venv\Scripts\python -m pytest -q` (86 tests, including full end-to-end workflow, security, MCP connector, rollback, GitHub and notification tests).
+
+**Operations:** Slack / Discord / webhook notifications (System → Notifications) tell approvers when a fix is ready; the **Insights** page shows MTTD, time to validated fix and MTTR from recorded timestamps.
 
 **Evaluation:** `backend\.venv\Scripts\python evaluation\run_eval.py [--mode llm]` runs 4 bug scenarios through the real pipeline — results in [docs/EVALUATION.md](docs/EVALUATION.md).
 

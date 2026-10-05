@@ -43,6 +43,8 @@ Format of each entry: Context → Options → Decision → Reason → Trade-offs
 | [D-35](#d-35-mcp-connector-external-ai-agents-answer-aions-model-calls-as-tasks) | MCP connector: external AI agents answer model calls as tasks | AI / Integration | Accepted |
 | [D-36](#d-36-rollback-by-revert-commit-manual-and-automatic) | Rollback by revert commit (manual and automatic) | Deployment | Accepted |
 | [D-37](#d-37-github-pull-requests-and-actions-as-an-extra-ci-gate) | GitHub pull requests + Actions as an extra CI gate | CI/CD | Accepted |
+| [D-38](#d-38-notifications-via-the-outbox-pattern-on-the-audit-trail) | Notifications via the outbox pattern on the audit trail | Operations | Accepted |
+| [D-39](#d-39-incident-metrics-computed-from-recorded-timestamps) | Incident metrics computed from recorded timestamps | Operations / Evaluation | Accepted |
 
 ---
 
@@ -996,3 +998,45 @@ Same artefact everywhere (local validation, PR CI, production all on one SHA), f
 
 ## Future Reconsideration
 GitHub App with webhooks instead of a PAT and polling; required status checks + merge queue.
+
+---
+
+# Decision: D-38 Notifications via the outbox pattern on the audit trail
+
+Date: 2026-10-05
+Status: Accepted
+Area: Operations
+
+## Context
+Approvers had to watch the dashboard to know a fix was waiting. Notifications must not slow down or break the incident workflow, and must not be lost on restart.
+
+## Options Considered
+- A. Send messages directly inside the pipeline / API handlers — a slow or failing webhook delays or fails the workflow; a crash between the state change and the send loses the message.
+- B. A message broker (Redis/RabbitMQ) — extra infrastructure.
+- C. **Outbox pattern**: state changes already write audit events in the same transaction; a background notifier reads audit events after a stored cursor, maps the interesting ones to messages and POSTs them.
+
+## Decision
+C (`notify.py`, `api/notifications.py`). Channels: Slack incoming webhook, Discord webhook, generic JSON webhook; per-channel event subscriptions (incident detected, awaiting approval, validation failed, deploy failed, resolved, rolled back, pipeline error); messages link to the incident (`AION_PUBLIC_URL`). Webhook URLs are secrets → Fernet-encrypted, shown only as scheme+host. Admin-only management, test-send, delivery log (`notification_deliveries`). On first start the cursor begins at the end of the trail (no flood of history); a failing channel is logged and never blocks others.
+
+## Trade-offs
+− At-most-once per event (no automatic retry of a failed delivery yet); up to ~3 s delay (poll interval).
+
+## Future Reconsideration
+Retries with backoff; e-mail; per-user subscriptions; escalation if approval waits too long.
+
+---
+
+# Decision: D-39 Incident metrics computed from recorded timestamps
+
+Date: 2026-10-05
+Status: Accepted
+Area: Operations / Evaluation
+
+## Context
+The project's claim is that AION shortens incident response; that needs measurable numbers, not estimates.
+
+## Decision
+`GET /api/insights` and the **Insights** page compute, per incident, from recorded data only: **MTTD** (first error log line → incident opened), **time to validated fix** (opened → first `awaiting_approval`), **human decision time** (`awaiting_approval` → `approved`), **deploy + verify** (`approved` → `resolved`) and **MTTR** (first error → `resolved`), using the first time each status appears in the audit trail; plus outcome counts (patch strategies and statuses, validation runs, GitHub CI results, analyzers, rollbacks). Medians are shown with means (robust to outliers).
+
+## Trade-offs
+− Demo incidents are short and scripted; real-world numbers require real usage. Human decision time includes however long the reviewer took to look.

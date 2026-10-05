@@ -297,6 +297,46 @@ class PullRequest(Base):
     created_at: Mapped[datetime] = mapped_column(default=utcnow)
 
 
+class NotificationChannel(Base):
+    """Where to send notifications (Slack / Discord incoming webhook, or a generic JSON webhook)."""
+
+    __tablename__ = "notification_channels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(20))                 # slack | discord | webhook
+    url_encrypted: Mapped[str] = mapped_column(Text)              # webhook URLs are secrets (Fernet)
+    url_hint: Mapped[str] = mapped_column(String(80), default="")
+    events: Mapped[list] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(default=True)
+    created_by: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class NotificationDelivery(Base):
+    """One attempt to deliver one event to one channel (the notifier's log)."""
+
+    __tablename__ = "notification_deliveries"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("notification_channels.id"), index=True)
+    audit_event_id: Mapped[int] = mapped_column(ForeignKey("audit_events.id"))
+    event: Mapped[str] = mapped_column(String(40))
+    incident_id: Mapped[Optional[int]] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(20))               # sent | failed
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=utcnow)
+
+
+class NotifierCursor(Base):
+    """Outbox cursor: the last audit event the notifier has processed (single row)."""
+
+    __tablename__ = "notifier_cursor"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    last_audit_id: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class AuditEvent(Base):
     """Append-only audit trail. No API exists to update or delete rows."""
 

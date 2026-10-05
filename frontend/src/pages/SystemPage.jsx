@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { fmtTime, usePolling } from "../hooks.js";
 import { Card, Sha } from "../components/common.jsx";
 import AiProviderCard from "../components/AiProviderCard.jsx";
+import NotificationsCard from "../components/NotificationsCard.jsx";
 
 export default function SystemPage({ system }) {
   const { data: deployments } = usePolling(api.deployments, 5000);
@@ -11,6 +12,7 @@ export default function SystemPage({ system }) {
       <div className="page-head"><h1>System</h1></div>
       <div className="grid-2">
         <AiProviderCard />
+        <NotificationsCard />
         <Card title="Incident detection">
           <div className="kv">
             <span>Window</span><span>{system.detection.window_seconds}s</span>

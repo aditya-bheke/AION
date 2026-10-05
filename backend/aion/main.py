@@ -10,11 +10,12 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select
 
-from aion.api import agent, ai_config, auth, incidents, ingest, system
+from aion.api import agent, ai_config, auth, incidents, ingest, insights, notifications, system
 from aion.config import REPO_ROOT, settings
 from aion.db import init_engine, session_scope
 from aion.lifecycle import InvalidTransition, Status, transition
 from aion.logs.collector import CollectorThread
+from aion.notify import NotifierThread
 from aion.models import Incident
 
 log = logging.getLogger("aion")
@@ -52,9 +53,12 @@ def create_app(start_background: Optional[bool] = None) -> FastAPI:
 
             collector = CollectorThread(settings.collector_interval_seconds, on_new)
             collector.start()
+            notifier = NotifierThread()
+            notifier.start()
         yield
         if collector:
             collector.stop()
+            notifier.stop()
 
     app = FastAPI(title="AION", version="0.1.0", lifespan=lifespan,
                   description="Autonomous Incident Observation & Navigation")
@@ -66,6 +70,8 @@ def create_app(start_background: Optional[bool] = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(ai_config.router)
     app.include_router(agent.router)
+    app.include_router(notifications.router)
+    app.include_router(insights.router)
     app.include_router(system.router)
     app.include_router(ingest.router)
     app.include_router(incidents.router)
