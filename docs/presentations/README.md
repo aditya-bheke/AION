@@ -2,6 +2,8 @@
 
 | File | |
 |---|---|
+| [AION_Project_Review.pptx](AION_Project_Review.pptx) | Project review deck (22 slides): introduction, problem statement, motivation, objectives, literature review (33 references), feasibility & scope, requirement analysis with costing, project design (architecture, mathematical model, UML) |
+| [AION_Project_Review.pdf](AION_Project_Review.pdf) | PDF export of the project review deck |
 | [AION_Review_2.pptx](AION_Review_2.pptx) | Project Review 2 deck (college format, 15 slides) |
 | [AION_Review_2.pdf](AION_Review_2.pdf) | PDF export of the same deck |
 
