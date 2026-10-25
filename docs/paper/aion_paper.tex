@@ -26,33 +26,26 @@
 \definecolor{aiontint}{HTML}{E4E7F2}
 \definecolor{aiongold}{HTML}{B8862F}
 
+% one aligned author column
+\newcommand{\authcol}[2]{%
+\begin{tabular}[t]{@{}c@{}}
+{\normalsize #1}\\[1pt]
+\textit{Dept. of Computer Engineering}\\
+\textit{Ajeenkya D Y Patil}\\
+\textit{School of Engineering}\\
+Pune, India\\
+#2
+\end{tabular}}
+
 \begin{document}
 
 \title{AION: A Closed-Loop, Human-Gated Framework for LLM-Assisted Incident Detection, Root-Cause Analysis, and Validated Remediation}
 
-\author{
-\IEEEauthorblockN{Aditya Bheke}
-\IEEEauthorblockA{\textit{Dept. of Computer Engineering} \\
-\textit{Ajeenkya D Y Patil School of Engineering}\\
-Pune, India \\
-aditya.bheke@dypic.in}
-\and
-\IEEEauthorblockN{Harshal Bhogawade}
-\IEEEauthorblockA{\textit{Dept. of Computer Engineering} \\
-\textit{Ajeenkya D Y Patil School of Engineering}\\
-Pune, India \\
-harshal.bhogawade@dypic.in}
-\and
-\IEEEauthorblockN{Malhar Bhoi}
-\IEEEauthorblockA{\textit{Dept. of Computer Engineering} \\
-\textit{Ajeenkya D Y Patil School of Engineering}\\
-Pune, India \\
-malhar.bhoi@dypic.in}
-\and
-\IEEEauthorblockN{Dr. Yogesh Bahendwar}
-\IEEEauthorblockA{\textit{Dept. of Computer Engineering} \\
-\textit{Ajeenkya D Y Patil School of Engineering}\\
-Pune, India}
+\author{\small
+\authcol{Aditya Bheke}{aditya.bheke@dypic.in}\hspace{1.4em}%
+\authcol{Harshal Bhogawade}{harshal.bhogawade@dypic.in}\hspace{1.4em}%
+\authcol{Malhar Bhoi}{malhar.bhoi@dypic.in}\hspace{1.4em}%
+\authcol{Dr. Yogesh Bahendwar}{\phantom{x}}%
 }
 
 \maketitle
@@ -70,6 +63,8 @@ AIOps, incident management, log analysis, root-cause analysis, large language mo
 %====================================================================
 Modern software services produce continuous streams of logs, alerts and deployment events. When a release introduces a fault, on-call engineers must find the relevant error among thousands of log lines, decide which recent change caused it, write and test a fix, and push that fix through the deployment pipeline. Empirical studies of cloud incident management report that this process remains expensive and dependent on experienced engineers, even in organisations with mature tooling~\cite{chen2020icm,notaro2021survey}.
 
+Consider a typical example, which we use as a running case study in Section~\ref{sec:case}. An online store deploys release v1.4.0, which contains a campaign feature that makes the coupon lookup return \texttt{None} for expired codes. A few hours later, customers who enter an old coupon receive HTTP~500 errors, and the logs fill with \texttt{TypeError: 'NoneType' object is not subscriptable}. To resolve this, an engineer must (i)~notice that this error is new and not background noise, (ii)~find which of the commits in the release touched the failing code, (iii)~understand why it fails, (iv)~write a fix and a test, (v)~verify that the fix works and breaks nothing else, and (vi)~deploy it. Each step is tedious, and each is a place where an automated assistant could help---provided it does not make production worse.
+
 Research in AIOps has made substantial progress on each stage separately. Log parsers such as Drain~\cite{he2017drain} and LILAC~\cite{jiang2024lilac} convert raw logs into templates; DeepLog~\cite{du2017deeplog}, LogAnomaly~\cite{meng2019loganomaly}, NeuralLog~\cite{le2021neurallog} and BERT-based detectors~\cite{guo2021logbert,lee2023lanobert,delacruz2026loganomaly} detect anomalous log behaviour. RCA techniques localise faulty services~\cite{wu2020microrca,ma2020automap,soldani2022survey}, and recent work shows that LLMs can recommend root causes and mitigations for real cloud incidents~\cite{ahmed2023recommending,chen2024rcacopilot,roy2024exploring}. In parallel, LLM-based automated program repair (APR) and software engineering agents can generate and test code fixes~\cite{xia2023apr,bouzenia2025repairagent,zhang2024autocoderover,yang2024sweagent}.
 
 Two gaps remain. First, these stages are rarely connected: detection and RCA systems stop at a diagnosis, while repair systems start from a bug report or a failing test and are evaluated on benchmarks such as Defects4J or SWE-bench~\cite{jimenez2024swebench} rather than on live production signals, deployment history and release pipelines. Recent surveys identify this fragmentation, together with hallucination and unreliable evaluation, as open problems for LLM-based AIOps~\cite{zhang2026aiopsllm,ma2026llm4log}. Second, letting an LLM change production code is unsafe without guarantees: a plausible but wrong fix can make an incident worse, and work on LLM-based remediation explicitly calls for safety checks~\cite{integrating2025llmobs}.
@@ -83,20 +78,37 @@ AION addresses both gaps with a closed-loop workflow in which AI may \emph{inves
 \item A scenario-based evaluation with known answers that measures each stage separately and documents how the evaluation exposed and fixed four weaknesses of the initial design (Section~\ref{sec:eval}).
 \end{itemize}
 
+The remainder of the paper is organised as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:problem} formalises the problem and the safety requirements. Section~\ref{sec:arch} presents the architecture and Section~\ref{sec:method} the methods used in each stage. Section~\ref{sec:impl} describes the implementation, Section~\ref{sec:case} walks through a complete incident, and Section~\ref{sec:eval} reports the evaluation. Sections~\ref{sec:disc} and~\ref{sec:threats} discuss lessons, limitations and threats to validity, and Section~\ref{sec:concl} concludes.
+
 %====================================================================
 \section{Related Work}
+\label{sec:related}
 %====================================================================
 \subsection{Log Parsing and Anomaly Detection}
-Surveys of automated log analysis cover the full pipeline from logging practice through parsing, anomaly detection, failure prediction and diagnosis~\cite{he2021survey}, and public datasets such as Loghub~\cite{zhu2023loghub} have enabled systematic benchmarking. Drain~\cite{he2017drain} parses logs online with a fixed-depth tree; LILAC~\cite{jiang2024lilac} uses LLMs with an adaptive parsing cache to improve template accuracy while reducing LLM queries. DeepLog~\cite{du2017deeplog} and LogAnomaly~\cite{meng2019loganomaly} learn normal log sequences; NeuralLog~\cite{le2021neurallog} avoids parsing errors by embedding raw messages; LogBERT~\cite{guo2021logbert} and LAnoBERT~\cite{lee2023lanobert} apply self-supervised BERT models, and a recent industrial deployment runs a LogBERT model locally for confidentiality~\cite{delacruz2026loganomaly}. A systematic review of LLM-based log analysis~\cite{ma2026llm4log} notes log drift, hallucination and context and cost limits. These methods establish \emph{that} something is wrong; they do not identify the responsible change or repair it. AION deliberately uses a lightweight, deterministic detector (template masking plus spike detection), because its contribution lies in what happens after detection.
+Surveys of automated log analysis cover the full pipeline from logging practice through parsing, anomaly detection, failure prediction and diagnosis~\cite{he2021survey}; He \emph{et al.} reviewed 158 publications spanning more than two decades. Public datasets such as Loghub~\cite{zhu2023loghub} have enabled systematic benchmarking across distributed systems, supercomputers, operating systems and server applications.
 
-\subsection{AIOps, Incident Management and Root-Cause Analysis}
-Notaro \emph{et al.}~\cite{notaro2021survey} organise AIOps failure-management methods into prevention, detection, diagnosis and remediation, and Zhang \emph{et al.}~\cite{zhang2026aiopsllm} survey how LLMs are changing these tasks. At Microsoft, Chen \emph{et al.}~\cite{chen2020icm} report two years of incident-management practice, and Ahmed \emph{et al.}~\cite{ahmed2023recommending} evaluate GPT-3.x models on more than 40,000 incidents for recommending root causes and mitigation steps from the incident title and summary. LLM-based RCA systems for cloud incidents~\cite{chen2024rcacopilot} and LLM agents for RCA~\cite{roy2024exploring} show that diagnosis improves when the model is given relevant context. Service-level RCA methods such as MicroRCA~\cite{wu2020microrca} and AutoMAP~\cite{ma2020automap} localise faulty microservices from metrics and dependency graphs~\cite{soldani2022survey}, and Wittkopp \emph{et al.}~\cite{wittkopp2023progressing} progress from anomaly detection towards log labelling and RCA. Integrating LLMs with cloud-native observability for automated RCA and remediation~\cite{integrating2025llmobs} highlights the risks of hallucinated root causes and telemetry that exceeds the model's context. AION adopts the lesson that context quality matters, but replaces free-form retrieval with a bounded, citable evidence pack, and it links the diagnosis to a concrete, testable code change.
+\emph{Log parsing} turns free-text messages into structured events. Drain~\cite{he2017drain} parses logs online with a fixed-depth tree that groups messages into templates. LILAC~\cite{jiang2024lilac} uses LLMs with in-context learning and an adaptive parsing cache, which improves template accuracy while reducing the number of LLM queries by orders of magnitude.
+
+\emph{Anomaly detection} identifies abnormal log behaviour. DeepLog~\cite{du2017deeplog} models normal log-key sequences with an LSTM and flags deviations, and LogAnomaly~\cite{meng2019loganomaly} detects both sequential and quantitative anomalies. Because parsing errors propagate into detectors, NeuralLog~\cite{le2021neurallog} embeds raw messages directly and classifies them with a Transformer. LogBERT~\cite{guo2021logbert} and LAnoBERT~\cite{lee2023lanobert} apply self-supervised BERT models trained on normal logs, and a recent industrial study deploys a LogBERT model locally to satisfy confidentiality requirements~\cite{delacruz2026loganomaly}. A systematic review of LLM-based log analysis~\cite{ma2026llm4log} highlights log drift, long-tail events, hallucination and the context, cost and latency limits of LLMs.
+
+These methods establish \emph{that} something is wrong; they do not identify the responsible change or repair it. AION deliberately uses a lightweight and deterministic detector (template masking plus spike detection), because its contribution lies in what happens after detection, and because a deterministic detector is easy to explain and audit.
+
+\subsection{AIOps and Incident Management}
+Notaro \emph{et al.}~\cite{notaro2021survey} organise AIOps failure-management methods into prevention, detection, diagnosis and remediation, and Zhang \emph{et al.}~\cite{zhang2026aiopsllm} survey how LLMs are changing these tasks, noting that the limits of LLMs in AIOps and the evaluation of LLM-based methods are not yet well understood. At Microsoft, Chen \emph{et al.}~\cite{chen2020icm} report on two years of incident-management practice and present an AIOps framework for incident management. Ahmed \emph{et al.}~\cite{ahmed2023recommending} evaluate GPT-3.x models on more than 40,000 incidents for recommending root causes and mitigation steps from the incident title and summary, and include a human evaluation with incident owners. These studies show that LLMs can assist engineers, but they work from incident text rather than from code and deployment history, and they do not produce or verify code changes.
+
+\subsection{Root-Cause Analysis}
+Service-level RCA methods such as MicroRCA~\cite{wu2020microrca} and AutoMAP~\cite{ma2020automap} localise faulty microservices from metrics and dependency graphs; Soldani and Brogi~\cite{soldani2022survey} survey anomaly detection and RCA in multi-service applications. Wittkopp \emph{et al.}~\cite{wittkopp2023progressing} progress from anomaly detection towards automated log labelling and RCA. LLM-based RCA systems for cloud incidents~\cite{chen2024rcacopilot} and LLM agents for RCA~\cite{roy2024exploring} show that diagnosis improves when the model is given relevant context. Integrating LLMs with cloud-native observability for automated RCA and remediation~\cite{integrating2025llmobs} highlights the risks of hallucinated root causes, telemetry volumes that exceed the model's context, and remediation without safety checks. AION adopts the lesson that context quality matters, but replaces free-form retrieval with a bounded, citable evidence pack, and links the diagnosis to a concrete, testable code change.
 
 \subsection{Change Analysis}
-The SZZ approach of \'Sliwerski \emph{et al.}~\cite{sliwerski2005changes} links version history to bug reports to identify fix-inducing changes after the fact. AION applies a related intuition online: when an error spike follows a deployment, the commits that touched the failing lines, functions or their dependencies, and that shipped in that deployment, are the strongest suspects.
+The SZZ approach of \'Sliwerski \emph{et al.}~\cite{sliwerski2005changes} links version history to bug reports to identify fix-inducing changes after the fact, and observes that such changes show distinct patterns in size and timing. AION applies a related intuition online: when an error spike follows a deployment, the commits that touched the failing lines, functions or their dependencies, and that shipped in that deployment, are the strongest suspects. Unlike SZZ, AION must rank suspects \emph{before} a fix exists, and must explain its ranking to a human reviewer.
 
 \subsection{Automated Program Repair and LLM Agents}
-Le Goues \emph{et al.}~\cite{legoues2019apr} review search-, semantics- and learning-based APR. AlphaRepair~\cite{xia2022alpharepair} showed that pre-trained code models can repair bugs zero-shot, and Xia \emph{et al.}~\cite{xia2023apr} found that larger pre-trained models outperform earlier APR tools across five datasets; Zhang \emph{et al.}~\cite{zhang2024slr} review the rapidly growing LLM-based APR literature. RepairAgent~\cite{bouzenia2025repairagent} is an autonomous agent that repaired 164 Defects4J bugs; AutoCodeRover~\cite{zhang2024autocoderover} combines program-structure-aware code search with LLMs; SWE-agent~\cite{yang2024sweagent} designs agent--computer interfaces for software engineering; and SWE-bench~\cite{jimenez2024swebench} evaluates such systems on 2,294 real GitHub issues. Kulsum \emph{et al.}~\cite{kulsum2024vrpilot} show that patch-validation feedback improves LLM-generated vulnerability fixes. These systems start from an issue or a failing test and end with a candidate patch; none of them observes production, correlates deployments or gates deployment on human approval.
+Le Goues \emph{et al.}~\cite{legoues2019apr} review search-, semantics- and learning-based APR. AlphaRepair~\cite{xia2022alpharepair} showed that pre-trained code models can repair bugs zero-shot, without training on bug-fix pairs, and Xia \emph{et al.}~\cite{xia2023apr} found across nine models and five datasets that larger pre-trained models outperform earlier APR tools; Zhang \emph{et al.}~\cite{zhang2024slr} review the rapidly growing LLM-based APR literature. RepairAgent~\cite{bouzenia2025repairagent} is an autonomous agent that gathers information, proposes fixes and validates them with tools, repairing 164 Defects4J bugs at a cost of roughly 270K tokens per bug. AutoCodeRover~\cite{zhang2024autocoderover} combines program-structure-aware code search with LLMs to resolve GitHub issues, and SWE-agent~\cite{yang2024sweagent} designs agent--computer interfaces for software engineering. SWE-bench~\cite{jimenez2024swebench} evaluates such systems on 2,294 real GitHub issues from 12 Python repositories. Kulsum \emph{et al.}~\cite{kulsum2024vrpilot} show that chain-of-thought reasoning and patch-validation feedback improve LLM-generated vulnerability fixes.
+
+These systems start from an issue or a failing test and end with a candidate patch. None of them observes production, correlates deployments, reproduces failing production traffic or gates deployment on human approval.
+
+\subsection{Grounding and Human-in-the-Loop Control}
+Retrieval-augmented generation~\cite{lewis2020rag} conditions a generator on retrieved passages to make outputs more specific and factual. AION follows the same principle but with a curated, structured context in which every item has an identifier that the model must cite; this allows claims to be verified mechanically. Human oversight is a recurring theme in incident management~\cite{chen2020icm,ahmed2023recommending}; AION makes it a structural property of the system rather than a recommendation.
 
 \subsection{Positioning}
 Table~\ref{tab:related} summarises the stages covered by representative work. AION's novelty is not a better individual stage but the safe, auditable composition of all stages, with deterministic checks around every AI output.
@@ -105,24 +117,72 @@ Table~\ref{tab:related} summarises the stages covered by representative work. AI
 \centering
 \caption{Stage coverage of representative work (\cmark{} covered, \pmark{} partial, \xmark{} not covered)}
 \label{tab:related}
-\setlength{\tabcolsep}{3pt}
-\footnotesize
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccccc@{}}
 \toprule
 Work & Det. & Corr. & RCA & Repair & Valid. & Gate \\
 \midrule
 DeepLog, NeuralLog~\cite{du2017deeplog,le2021neurallog} & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
+LogBERT, LAnoBERT~\cite{guo2021logbert,lee2023lanobert} & \cmark & \xmark & \xmark & \xmark & \xmark & \xmark \\
 MicroRCA, AutoMAP~\cite{wu2020microrca,ma2020automap} & \pmark & \xmark & \cmark & \xmark & \xmark & \xmark \\
 LLM incident RCA~\cite{ahmed2023recommending,chen2024rcacopilot} & \xmark & \xmark & \cmark & \xmark & \xmark & \xmark \\
 SZZ~\cite{sliwerski2005changes} & \xmark & \cmark & \xmark & \xmark & \xmark & \xmark \\
+AlphaRepair, LLM-APR~\cite{xia2022alpharepair,xia2023apr} & \xmark & \xmark & \xmark & \cmark & \pmark & \xmark \\
 RepairAgent, AutoCodeRover~\cite{bouzenia2025repairagent,zhang2024autocoderover} & \xmark & \xmark & \pmark & \cmark & \cmark & \xmark \\
 \textbf{AION (this work)} & \cmark & \cmark & \cmark & \cmark & \cmark & \cmark \\
 \bottomrule
 \end{tabular}}
 \vspace{2pt}
 
-\raggedright\scriptsize Det.: detection from production logs; Corr.: correlation with commits and deployments; Valid.: validation in staging before release; Gate: enforced human approval for production.
+\raggedright\scriptsize Det.: detection from production logs; Corr.: correlation with commits and deployments; Valid.: validation before release; Gate: enforced human approval for production.
+\end{table}
+
+%====================================================================
+\section{Problem Formulation}
+\label{sec:problem}
+%====================================================================
+\subsection{Definitions}
+A monitored \emph{service} has a Git repository with a production branch and a sequence of \emph{deployments} $D = \langle d_1, \dots, d_n \rangle$, where each $d_j$ records a version, the deployed commit and a timestamp. The service emits a stream of structured log events $L$. An \emph{incident} $I$ is a set of error events that share a signature and whose rate departs from its baseline. Let $C$ be the set of commits that reached production in recent deployments. The incident-resolution task is to produce, for each incident:
+\begin{enumerate}
+\item a ranked list of suspect commits $\langle c_1, c_2, \dots \rangle \subseteq C$ with an explanation for each rank;
+\item a diagnosis $R$ that states the root cause and cites evidence;
+\item a candidate patch $P$ (a commit on an isolated branch) together with a validation report $V(P)$; and
+\item a production deployment of $P$, performed only after a human decision $A$.
+\end{enumerate}
+
+\subsection{Safety Properties}
+Because candidate patches may be produced by an LLM, AION treats every AI output as untrusted and must guarantee the following properties regardless of model behaviour:
+\begin{itemize}
+\item \textbf{S1 (Human authority):} No change reaches production without an explicit human approval.
+\item \textbf{S2 (Approval integrity):} The deployed commit is exactly the commit that was validated and approved.
+\item \textbf{S3 (Validated candidates):} Only patches that pass deterministic validation are offered for approval.
+\item \textbf{S4 (Bounded edits):} A patch cannot modify tests, CI configuration or dependencies, and cannot exceed a size limit.
+\item \textbf{S5 (Traceability):} Every automated and human action is recorded and attributable.
+\end{itemize}
+
+\subsection{Functional Requirements}
+Table~\ref{tab:req} lists the functional requirements derived from the task and the module that addresses each one.
+
+\begin{table}[t]
+\centering
+\caption{Functional requirements}
+\label{tab:req}
+\footnotesize
+\begin{tabular}{@{}p{0.45cm}p{5.0cm}p{2.1cm}@{}}
+\toprule
+ID & Requirement & Addressed in \\
+\midrule
+R1 & Ingest structured logs from files and over HTTP & Sec.~\ref{sec:norm} \\
+R2 & Collapse repeated errors into signatures & Sec.~\ref{sec:norm} \\
+R3 & Open an incident when an error rate spikes & Sec.~\ref{sec:detect} \\
+R4 & Rank suspect commits with explanations & Sec.~\ref{sec:corr} \\
+R5 & Diagnose the root cause with cited evidence & Sec.~\ref{sec:rca} \\
+R6 & Generate a candidate fix and a regression test & Sec.~\ref{sec:patch} \\
+R7 & Validate the fix against tests and real traffic & Sec.~\ref{sec:valid} \\
+R8 & Deploy only after approval; verify recovery & Sec.~\ref{sec:deploy} \\
+R9 & Work without an LLM, and with a local model & Sec.~\ref{sec:rca} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
 %====================================================================
@@ -174,11 +234,36 @@ Fig.~\ref{fig:arch} shows the closed loop. A monitored production service emits 
 
 \subsection{Design Principles}
 \begin{itemize}
-\item \textbf{AI proposes, humans dispose.} The incident lifecycle is a finite-state machine (Fig.~\ref{fig:fsm}); no transition leads from \textsc{awaiting\_approval} to \textsc{deploying} except through \textsc{approved}, which only the human approval API can enter.
-\item \textbf{Deterministic checks around every AI output.} LLM diagnoses are grounded against evidence; LLM patches pass a code-enforced policy and a validation pipeline whose commands are defined by the operator, never by the model.
+\item \textbf{AI proposes, humans dispose.} The incident lifecycle is a finite-state machine (Fig.~\ref{fig:fsm}); no transition leads from \textsc{awaiting\_approval} to \textsc{deploying} except through \textsc{approved}, which only the human approval API can enter (property S1).
+\item \textbf{Deterministic checks around every AI output.} LLM diagnoses are grounded against evidence; LLM patches pass a code-enforced policy and a validation pipeline whose commands are defined by the operator, never by the model (S3, S4).
 \item \textbf{Explainability.} Every suspect score, grounding warning and validation step is stored with a human-readable reason.
-\item \textbf{Graceful degradation.} Without an LLM, a clearly labelled deterministic analyser reports the top-ranked suspect and proposes a \texttt{git revert}.
+\item \textbf{Graceful degradation.} Without an LLM, a clearly labelled deterministic analyser reports the top-ranked suspect and proposes a \texttt{git revert} (R9).
+\item \textbf{Replaceable infrastructure.} Each infrastructure stand-in---the validation runner, the deployer, the LLM provider---sits behind a narrow interface so that it can be replaced by a production equivalent without changing the rest of the pipeline.
 \end{itemize}
+
+\subsection{Components}
+AION is organised as a modular monolith: a single backend process whose packages have clear boundaries and communicate through function calls and the database. Table~\ref{tab:components} lists the packages. A single background worker executes pipeline jobs, so each incident is processed sequentially and its state changes are easy to follow.
+
+\begin{table}[t]
+\centering
+\caption{Backend components}
+\label{tab:components}
+\footnotesize
+\begin{tabular}{@{}p{1.85cm}p{5.75cm}@{}}
+\toprule
+Package & Responsibility \\
+\midrule
+\texttt{logs} & file-tail collector, HTTP ingest, normalisation, templates, signatures, spike detection \\
+\texttt{gitops} & Git wrapper (history, blame, worktrees, revert); commit--deployment correlation \\
+\texttt{ai} & provider-neutral LLM interface, evidence pack, RCA, grounding, patch prompts \\
+\texttt{remediation} & worktree per attempt, edit application, patch policy, revert patches \\
+\texttt{validation} & local CI runner: syntax, fail-to-pass, tests, staging, replay \\
+\texttt{deploy} & approval-checked deployment and production verification \\
+\texttt{pipeline} & background worker and orchestrator; lifecycle state machine \\
+\texttt{api} & REST endpoints used by the dashboard and log shippers \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[t]
 \centering
@@ -212,33 +297,106 @@ Fig.~\ref{fig:arch} shows the closed loop. A monitored production service emits 
 \label{fig:fsm}
 \end{figure}
 
+\subsection{Data Model}
+All state is persisted in a relational database. Table~\ref{tab:data} summarises the main entities. Every analysis artefact belongs to exactly one incident, so a reviewer can reconstruct the full history of an incident---including what the LLM was shown---from the database alone.
+
+\begin{table}[t]
+\centering
+\caption{Main persistent entities}
+\label{tab:data}
+\footnotesize
+\begin{tabular}{@{}p{2.0cm}p{5.7cm}@{}}
+\toprule
+Entity & Key attributes \\
+\midrule
+Service & repository path, production branch, health path, test and run commands \\
+LogEvent & timestamp, level, message, template, signature, exception, frames, request \\
+LogSignature & signature, template, count, first and last occurrence \\
+Incident & title, status, severity, signature, event count, first and last seen \\
+Deployment & version, commit SHA, time, status, related incident \\
+CommitSuspect & commit SHA, author, message, files, score, reasons \\
+RCAReport & root cause, observations, inferences, suspected commit, confidence, grounding warnings, evidence pack \\
+PatchProposal & attempt, strategy, edits, diff, branch, base and commit SHA, status \\
+ValidationRun & per-step status and output \\
+Approval & approver, decision, comment, commit SHA \\
+AuditEvent & timestamp, actor, action, details \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 %====================================================================
 \section{Methodology}
+\label{sec:method}
 %====================================================================
 \subsection{Log Normalisation and Signatures}
-Each log record $l$ is normalised into an event with timestamp, level, message, request context and parsed stack frames. A template $\tau(l)$ is obtained by masking variable fields in a fixed order---UUIDs, URLs, e-mail and IP addresses, hexadecimal identifiers, timestamps and finally numbers---so that \emph{``Order 1042 failed after 3.2ms''} becomes \emph{``Order \textless NUM\textgreater{} failed after \textless NUM\textgreater ms''}. For error events, the signature is a hash
+\label{sec:norm}
+Each log record $l$ is normalised into an event with timestamp, level, message, request context and parsed stack frames. A template $\tau(l)$ is obtained by applying the masking rules of Table~\ref{tab:masks} in order, so that more specific patterns are replaced before generic numbers; for example, \emph{``Order 1042 failed after 3.2ms''} becomes \emph{``Order \textless NUM\textgreater{} failed after \textless NUM\textgreater ms''}. For error events, the signature is a hash
 \begin{equation}
 s(l) = h\big(\text{type}(l),\ \text{frames}(l),\ \tau(l)\big),
 \end{equation}
-where $\text{frames}(l)$ are the innermost application frames (file and function, deliberately \emph{without} line numbers so that a signature survives unrelated edits). Signatures are stored with occurrence counts and first and last occurrence times.
+where $\text{frames}(l)$ are the innermost application frames (file and function, deliberately \emph{without} line numbers so that a signature survives unrelated edits above the failing line). Signatures are stored with occurrence counts and first and last occurrence times, which turns thousands of lines into a handful of rows.
+
+\begin{table}[t]
+\centering
+\caption{Template masking rules (applied in order)}
+\label{tab:masks}
+\footnotesize
+\begin{tabular}{@{}clc@{}}
+\toprule
+\# & Pattern & Token \\
+\midrule
+1 & UUID & \textless UUID\textgreater \\
+2 & HTTP(S) URL & \textless URL\textgreater \\
+3 & e-mail address & \textless EMAIL\textgreater \\
+4 & IPv4 address (optional port) & \textless IP\textgreater \\
+5 & hexadecimal literal or long hex identifier & \textless HEX\textgreater \\
+6 & ISO-8601 timestamp & \textless TS\textgreater \\
+7 & integer or decimal number & \textless NUM\textgreater \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Incident Detection}
+\label{sec:detect}
 Let $c_t(s)$ be the number of events with signature $s$ in the current window of length $W$, and $b(s)$ the average number of occurrences per window over the preceding baseline period $B$. An incident is opened when
 \begin{equation}
 c_t(s) \ge m \quad\wedge\quad c_t(s) \ge \rho \cdot b(s),
 \label{eq:spike}
 \end{equation}
-with defaults $W=60$\,s, $B=30$\,min, $m=5$ and $\rho=3$. A brand-new error ($b(s)=0$) fires once it reaches $m$, while long-standing low-rate noise does not. Further events with the same signature attach to the open incident, and event time (not wall-clock time) is used, so replayed logs behave identically to live traffic. Events older than the closure of a previous incident with the same signature are ignored, preventing late log lines from reopening a fixed problem.
+with defaults $W=60$\,s, $B=30$\,min, $m=5$ and $\rho=3$. A brand-new error ($b(s)=0$) fires once it reaches $m$, while long-standing low-rate noise does not. Further events with the same signature attach to the open incident. Event time (log timestamps) rather than wall-clock time is used, so replayed logs behave identically to live traffic. Events older than the closure of a previous incident with the same signature are ignored, so late log lines cannot reopen a fixed problem, whereas a genuine recurrence after closure opens a new incident. Algorithm~\ref{alg:detect} summarises the procedure.
+
+\begin{algorithm}[t]
+\caption{Signature-level spike detection}
+\label{alg:detect}
+\small
+\begin{algorithmic}[1]
+\Require new error signatures $\Sigma$ in an ingested batch, time $t$
+\Ensure set of incidents opened
+\State $k \gets \max(B/W, 1)$; \quad $O \gets \emptyset$
+\For{$s \in \Sigma$}
+  \If{an open incident with signature $s$ exists} attach events; \textbf{continue} \EndIf
+  \State $t_0 \gets \max(t - W,\ \textsc{LastClosure}(s))$
+  \State $c \gets \textsc{Count}(s, t_0, t)$
+  \State $b \gets \textsc{Count}(s, t - W - B, t - W) / k$
+  \If{$c \ge m \wedge c \ge \rho\, b$}
+     \State $O \gets O \cup \{\textsc{OpenIncident}(s, c, b)\}$ \Comment{state \textsc{detected}}
+  \EndIf
+\EndFor
+\State \Return $O$
+\end{algorithmic}
+\end{algorithm}
 
 \subsection{Change Correlation}
 \label{sec:corr}
-For each commit $c$ in the recent history of the service, AION computes binary or graded signals $f_k(c)$ and combines them into an explainable suspicion score
+For each commit $c$ in the recent history of the service, AION computes signals $f_k(c)$ and combines them into an explainable suspicion score
 \begin{equation}
 S(c) = \min\Big(1,\ \sum_k w_k\, f_k(c)\Big)\cdot \lambda(c),
 \qquad c^\ast = \arg\max_c S(c),
 \label{eq:score}
 \end{equation}
-with the signals and weights of Table~\ref{tab:weights}. Blame signals are computed at the \emph{deployed} revision, function ranges are found with Python's \texttt{ast} module, and signals from deeper stack frames are damped by 0.5. Each signal counts once per commit, so a commit touching many frames cannot inflate its score. Commits already running in an earlier deployment before the errors appeared receive $\lambda(c)=0.5$; otherwise $\lambda(c)=1$. Ties are broken by recency. $S(c)$ is a ranking heuristic, not a probability; the LLM later reasons over the top candidates and their diffs.
+with the signals and weights of Table~\ref{tab:weights}. Blame signals are computed at the \emph{deployed} revision, function ranges are found with Python's \texttt{ast} module, and signals from deeper stack frames are damped by a factor of 0.5. Each signal counts once per commit (its strongest instance), so a commit that touches many frames cannot inflate its score. Commits already running in an earlier deployment before the errors appeared receive $\lambda(c)=0.5$; otherwise $\lambda(c)=1$. Ties are broken by recency. $S(c)$ is a ranking heuristic, not a probability; the LLM later reasons over the top candidates and their diffs.
+
+The dependency-overlap signal deserves comment. A fault is not always located in the code that crashes: in one of our scenarios, a commit adds a product record with a differently named price field, and existing, correct pricing code raises a \texttt{KeyError} when it reads that record. \texttt{git blame} on the failing line points at the old pricing commit. The dependency signal credits commits that changed a module \emph{imported by} a file in the stack trace, which captures causes that lie in data or helpers rather than on the stack.
 
 \begin{table}[t]
 \centering
@@ -261,13 +419,60 @@ Keywords & error identifiers appear in the commit message & 0.05 \\
 
 \subsection{Evidence Pack and Grounded Root-Cause Analysis}
 \label{sec:rca}
-Instead of placing raw logs in the prompt or retrieving free text~\cite{lewis2020rag}, AION assembles a bounded \emph{evidence pack} $E$ whose items carry stable identifiers: deduplicated log clusters (\texttt{LOG-n}, classified as incident, new or pre-existing noise), a representative trace with failing requests (\texttt{TRACE-1}), preceding deployments (\texttt{DEPLOY-n}), top suspects with scores, reasons and diffs (\texttt{COMMIT-x}), the source of the functions in the trace at the deployed revision (\texttt{CODE-n}), and similar past incidents with their fixes (\texttt{INC-n}). The LLM must return structured JSON that separates \emph{observations} (each citing an evidence ID) from \emph{inferences} (each citing supporting evidence), together with affected files, a suspected commit, a remediation plan and a confidence value.
+Instead of placing raw logs in the prompt or retrieving free text~\cite{lewis2020rag}, AION assembles a bounded \emph{evidence pack} $E$ whose items carry stable identifiers (Table~\ref{tab:evidence}). The pack is small enough to fit the context window of a local 7B model (12k tokens in our experiments), and its items are selected for relevance rather than retrieved by similarity.
 
-A grounding step then checks the response deterministically: observations citing unknown IDs are removed; inferences without valid support are flagged; affected files must exist in the repository; and the suspected commit must be one of the candidates. Any unverifiable claim caps the confidence at 0.60, and a diagnosis with no verifiable observation is capped at 0.30. The exact evidence pack is stored with the report, so a reviewer sees what the model saw. The provider layer is model-neutral: AION supports the Claude API with structured outputs and any OpenAI-compatible endpoint, including locally hosted models, which keeps sensitive logs on premises.
+\begin{table}[t]
+\centering
+\caption{Evidence pack items}
+\label{tab:evidence}
+\footnotesize
+\begin{tabular}{@{}p{1.4cm}p{6.3cm}@{}}
+\toprule
+ID & Content \\
+\midrule
+\texttt{LOG-n} & deduplicated log clusters around the incident, with counts and a classification (incident, new, pre-existing noise) \\
+\texttt{TRACE-1} & a representative stack trace and sample failing requests \\
+\texttt{DEPLOY-n} & deployments preceding the incident \\
+\texttt{COMMIT-x} & top suspect commits with scores, reasons and diffs \\
+\texttt{CODE-n} & source of the functions in the stack trace at the deployed revision \\
+\texttt{INC-n} & similar past incidents and how they were fixed \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The LLM must return structured JSON that separates \emph{observations}, each citing an evidence ID, from \emph{inferences}, each citing supporting evidence, together with affected files, a suspected commit, a remediation plan and a confidence value. A grounding step then checks the response deterministically:
+\begin{itemize}
+\item observations citing unknown evidence IDs are removed;
+\item inferences that cite unknown evidence, or none, are flagged;
+\item affected files must exist in the repository;
+\item the suspected commit must be one of the candidate commits; a disagreement with the top-ranked suspect is reported to the reviewer;
+\item any unverifiable claim caps the confidence at 0.60, and a diagnosis with no verifiable observation is capped at 0.30.
+\end{itemize}
+The exact evidence pack is stored with the report, so a reviewer sees what the model saw. The provider layer is model-neutral: AION supports the Claude API with structured outputs and any OpenAI-compatible endpoint, including locally hosted models, which keeps sensitive logs on premises. Without a configured model, a deterministic analyser produces a labelled diagnosis from the top-ranked suspect and the failing frame.
 
 \subsection{Policy-Constrained Patch Generation}
 \label{sec:patch}
-Each patch attempt runs in its own Git worktree and branch. The LLM returns search/replace edits plus a regression test that should reproduce the incident; edits whose search text differs from the source only in indentation are repaired automatically. A code-enforced policy, independent of the prompt, rejects patches that edit tests, CI or dependency files, touch non-existent or unsafe paths, change more than five files or more than 200 lines, or place new tests outside a dedicated name pattern. Algorithm~\ref{alg:repair} shows the bounded generate--validate--repair loop: validation failures are fed back to the model for a limited number of attempts, after which AION falls back to reverting the top-ranked suspect commit. Both kinds of candidate go through the same validation and the same human gate.
+Each patch attempt runs in its own Git worktree and branch, so concurrent or failed attempts never touch the production checkout. The LLM returns search/replace edits plus a regression test that should reproduce the incident. Edits are applied literally; if the search text differs from the source only in indentation, the edit is repaired automatically and the repair is recorded. A code-enforced policy (Table~\ref{tab:policy}), independent of the prompt, rejects patches that violate safety property S4---so a model that ignores its instructions still cannot, for example, delete a failing test to make the suite pass.
+
+\begin{table}[t]
+\centering
+\caption{Patch policy enforced in code}
+\label{tab:policy}
+\footnotesize
+\begin{tabular}{@{}p{7.7cm}@{}}
+\toprule
+Rule \\
+\midrule
+Paths must be repository-relative, without \texttt{..}, drive letters or absolute paths \\
+Edited files must already exist in the repository \\
+Tests, CI configuration, Dockerfiles, dependency manifests and \texttt{.git} are protected \\
+New test files must match a dedicated name pattern (\texttt{tests/test\_aion\_*.py}) \\
+At most 5 files and 200 changed lines per patch \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Algorithm~\ref{alg:repair} shows the bounded generate--validate--repair loop: policy violations and validation failures are fed back to the model for a limited number of attempts (two by default), after which AION falls back to reverting the top-ranked suspect commit. Both kinds of candidate go through the same validation and the same human gate. A revert is a conservative remedy---it removes the new feature together with the fault---so the reviewer is shown which strategy produced the candidate.
 
 \begin{algorithm}[t]
 \caption{Generate--validate--repair with revert fallback}
@@ -298,30 +503,136 @@ A patch $P$ is accepted only if
 V(P) = \text{syntax} \wedge \text{fail2pass} \wedge \text{tests} \\
 \wedge\ \text{staging} \wedge \text{replay},
 \end{multline}
-where \emph{syntax} compiles every changed file; \emph{fail2pass} runs the new regression test against the \emph{unpatched} code (where it must fail, proving it reproduces the incident) and against the patch; \emph{tests} runs the service's full test suite; \emph{staging} starts the patched service from its worktree and waits for its health check; and \emph{replay} re-sends the production requests that failed during the incident (expecting no 5xx response) together with a sample of previously successful requests (expecting unchanged status). All commands come from the operator's service registration and run without a shell and with timeouts. This mirrors the finding that validation feedback is essential for trustworthy LLM fixes~\cite{kulsum2024vrpilot}, but executes it against reproduced production traffic rather than a benchmark test suite.
+with the steps of Table~\ref{tab:valsteps}. The fail-to-pass step runs the new regression test against the \emph{unpatched} code, where it should fail, proving that it reproduces the incident; for revert candidates, which add no test, this step is skipped. The replay step re-sends the production requests that failed during the incident (expecting no 5xx response) together with a sample of previously successful requests (expecting an unchanged status), so a patch that ``fixes'' the crash by breaking normal behaviour is rejected. All commands come from the operator's service registration and run without a shell and with timeouts (180\,s for tests by default). This mirrors the finding that validation feedback is essential for trustworthy LLM fixes~\cite{kulsum2024vrpilot}, but executes it against reproduced production traffic rather than a benchmark test suite.
+
+\begin{table}[t]
+\centering
+\caption{Validation pipeline (a blocking failure stops the pipeline)}
+\label{tab:valsteps}
+\footnotesize
+\begin{tabular}{@{}p{2.0cm}p{5.7cm}@{}}
+\toprule
+Step & Check \\
+\midrule
+syntax & every changed source file compiles \\
+fail2pass & new regression test fails on the old code (reproduces the incident) \\
+tests & the service's full unit-test suite passes on the patched code \\
+staging & patched service starts from its worktree and passes its health check \\
+replay & failing production requests now succeed; baseline requests keep their status \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Human Approval, Deployment and Audit}
-An engineer reviews the evidence, diagnosis, diff and validation report in a web dashboard and approves or rejects the candidate. The approval records the approver, a comment and the commit SHA; deployment is a separate action that re-checks that the approved SHA equals the validated SHA:
+\label{sec:deploy}
+An engineer reviews the evidence, diagnosis, diff and validation report in a web dashboard and approves or rejects the candidate. The approval records the approver, a comment and the commit SHA; deployment is a separate action that re-checks that the approved SHA equals the validated SHA (property S2):
 \begin{multline}
 \text{deploy}(P) \iff V(P)=1 \ \wedge\ A=\text{approve} \\
 \wedge\ \text{sha}(A)=\text{sha}(P).
 \end{multline}
-Deployment is a GitOps-style fast-forward of the production branch, followed by verification that the service reports the approved commit and that the previously failing requests now succeed. The incident is marked resolved only after verification; a failed verification returns it for re-investigation. All actions by the pipeline and by humans are written to an append-only audit table.
+An approval may also be withdrawn before deployment. Deployment performs pre-flight checks and a GitOps-style fast-forward of the production branch, followed by verification that the service reports the approved commit and that the previously failing requests now succeed. The incident is marked resolved only after verification; a failed verification moves it to \textsc{deploy\_failed} and allows re-investigation. All actions by the pipeline and by humans are written to an append-only audit table (property S5).
 
 %====================================================================
 \section{Implementation}
+\label{sec:impl}
 %====================================================================
-AION is implemented in Python with FastAPI, SQLAlchemy and SQLite (write-ahead logging) for persistence, the Git command-line tool for history, blame, worktrees and reverts, and a React dashboard that shows a live pipeline view, evidence, diffs, the approval panel and the audit log. A single background worker executes the pipeline. The LLM layer supports the Claude API through the official SDK and OpenAI-compatible servers such as Ollama. A realistic demonstration service---an orders API with a synthetic multi-commit, multi-deployment Git history---is monitored end to end. The code base is covered by 44 automated tests, including complete end-to-end workflow tests. In a live demonstration on a laptop, an injected fault reached the approval gate about 4\,s after the first errors with the deterministic analyser, and approval plus deployment reached a verified, resolved state in about 2\,s.
+AION is implemented in Python with FastAPI for the REST interface, SQLAlchemy and SQLite in write-ahead-logging mode for persistence, and the Git command-line tool for history, blame, worktrees and reverts. The dashboard is a React single-page application built with Vite and served by the backend; it polls the API for live updates. The LLM layer supports the Claude API through the official SDK, with structured outputs, and OpenAI-compatible servers such as Ollama for local models. Table~\ref{tab:api} lists the main endpoints and Table~\ref{tab:config} the main configuration parameters.
+
+\begin{table}[t]
+\centering
+\caption{Main REST endpoints}
+\label{tab:api}
+\footnotesize
+\begin{tabular}{@{}p{4.2cm}p{3.5cm}@{}}
+\toprule
+Endpoint & Purpose \\
+\midrule
+\texttt{POST /api/services} & register a monitored service \\
+\texttt{POST /api/ingest/\{service\}} & ingest a batch of log records \\
+\texttt{POST /api/deployments} & record a deployment \\
+\texttt{GET /api/incidents[/\{id\}]} & list incidents / full detail \\
+\texttt{POST .../\{id\}/approve} & approve the validated candidate \\
+\texttt{POST .../\{id\}/reject} & reject or withdraw approval \\
+\texttt{POST .../\{id\}/deploy} & deploy the approved commit \\
+\texttt{POST .../\{id\}/rerun} & re-run the investigation \\
+\texttt{GET /api/audit} & read the audit trail \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\centering
+\caption{Main configuration parameters and defaults}
+\label{tab:config}
+\footnotesize
+\begin{tabular}{@{}p{3.8cm}p{2.3cm}c@{}}
+\toprule
+Parameter & Meaning & Default \\
+\midrule
+\texttt{DETECTION\_WINDOW} & window $W$ & 60\,s \\
+\texttt{DETECTION\_BASELINE} & baseline $B$ & 1800\,s \\
+\texttt{DETECTION\_MIN\_COUNT} & threshold $m$ & 5 \\
+\texttt{DETECTION\_SPIKE\_RATIO} & ratio $\rho$ & 3.0 \\
+\texttt{MAX\_PATCH\_ATTEMPTS} & AI attempts $N$ & 2 \\
+\texttt{REVERT\_FALLBACK} & revert after failures & on \\
+\texttt{TEST\_TIMEOUT} & test timeout & 180\,s \\
+\texttt{LLM\_PROVIDER} & model provider & auto \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The dashboard has four views: an incident list; an incident detail page with a live pipeline stepper, log clusters, the evidence-cited diagnosis, ranked suspects, a diff viewer, the validation report and the approval panel; an audit log; and a system page showing services, the configured analyser and worker health. A realistic demonstration service---an orders API with a synthetic multi-commit, multi-deployment Git history and a GitOps-style controller that reloads the running service when the production branch moves---is monitored end to end.
+
+The code base is covered by 44 automated tests, including unit tests for normalisation, detection, correlation, the patch policy and the lifecycle, and complete end-to-end workflow tests. In a live demonstration on a laptop, an injected fault reached the approval gate about 4\,s after the first errors with the deterministic analyser, and approval plus deployment reached a verified, resolved state in about 2\,s.
+
+%====================================================================
+\section{Case Study: An Expired-Coupon Incident}
+\label{sec:case}
+%====================================================================
+We now follow the running example of Section~I through the pipeline, using the recorded output of the evaluation harness.
+
+\textbf{Setup.} The orders service has five base commits (initial API, pricing with GST, coupons, payments, documentation). Two further commits are then deployed together as release v1.4.0: a campaign feature by one developer that adds coupon expiry and a maximum discount and makes \texttt{get\_coupon()} return \texttt{None} for unknown or expired codes, and an unrelated change by another developer that adds request durations to the access logs. Traffic then includes orders that use an expired coupon.
+
+\textbf{Detection.} The harness generated 44 log events. The new \texttt{TypeError} signature reached the threshold in its first window with an empty baseline, and exactly one incident was opened, titled \emph{``TypeError: 'NoneType' object is not subscriptable''}.
+
+\textbf{Correlation.} Table~\ref{tab:case} shows the top three suspects with their recorded reasons. The campaign commit collects every signal ($0.40+0.20+0.20+0.15+0.15+0.05=1.15$, capped at 1.0). The older commit that introduced coupon support modified the enclosing function and the calling line in a deeper frame ($0.40\cdot0.5 + 0.20 + 0.15 + 0.15 + 0.05 = 0.75$), but it was already in production before the errors began, so its score is halved to 0.375. The logging change shipped in the same release and touched a file in the trace, giving 0.35. The ranking is therefore unambiguous, and each number can be traced to a human-readable reason.
+
+\begin{table}[t]
+\centering
+\caption{Recorded suspects for the expired-coupon incident}
+\label{tab:case}
+\footnotesize
+\begin{tabular}{@{}p{2.3cm}c p{4.0cm}@{}}
+\toprule
+Commit & $S(c)$ & Recorded reasons \\
+\midrule
+Support seasonal campaigns: coupon expiry and maximum discount & 1.00 & blame on failing line; modified \texttt{apply\_discount()}; shipped in v1.4.0; file in trace; changed imported module \texttt{coupons.py}; keyword ``discount'' \\
+Add coupon support to order totals & 0.375 & modified \texttt{apply\_discount()}; blame on calling line; files in trace; imported module; already in production before v1.4.0 ($\times$0.5) \\
+Add request duration to access logs & 0.35 & shipped in v1.4.0; file in trace \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Diagnosis.} The deterministic analyser reported the failing location (\texttt{app/pricing.py}, line 17, in \texttt{apply\_discount()}) and the campaign commit as the most recent change to it, with confidence 0.8. The local LLM, given the evidence pack, explained that the error occurs because the \texttt{coupon} parameter is \texttt{None} where a dictionary is expected, and named the same commit with confidence 0.9; the grounding step raised no warnings.
+
+\textbf{Remediation and validation.} The local model's two patch attempts guarded one field of the \texttt{None} coupon but still read another, so its own regression test crashed and both attempts were rejected. The revert fallback then reverted the campaign commit on an isolated branch; the candidate compiled, passed the unit tests, started in staging and answered the replayed requests correctly, and the incident moved to \textsc{awaiting\_approval}. At this point an engineer sees the diagnosis, the ranked suspects with reasons, the revert diff and the validation report, and decides whether to deploy the revert or to write a forward fix.
 
 %====================================================================
 \section{Evaluation}
 \label{sec:eval}
 %====================================================================
 \subsection{Research Questions}
-\textbf{RQ1:} Does AION detect seeded incidents without false positives? \textbf{RQ2:} Does change correlation rank the true culprit first? \textbf{RQ3:} Does the LLM diagnosis identify the culprit, and do AI patches pass validation? \textbf{RQ4:} Does the safety design stop incorrect patches before the approval gate?
+\begin{description}
+\item[RQ1] Does AION detect seeded incidents without false positives?
+\item[RQ2] Does change correlation rank the true culprit first?
+\item[RQ3] Does the LLM diagnosis identify the culprit, and do AI patches pass validation?
+\item[RQ4] Does the safety design stop incorrect patches before the approval gate?
+\end{description}
 
 \subsection{Setup}
-We built four scenarios on the same five-commit base history of the demonstration service, each with a known answer (Table~\ref{tab:scen}). The \emph{supplier-feed} scenario is deliberately hard: the culprit commit changes only \emph{data}, so \texttt{git blame} on the failing line points at older, innocent code. For each scenario an evaluation harness creates a fresh workspace and database, builds the Git history, executes the real service code to generate normal traffic and trigger requests, ingests the resulting logs through the API and runs the real pipeline up to the approval gate; production deployment is excluded because it always requires a human. We compare two modes: \emph{heuristic} (no LLM: correlation-ranked diagnosis and revert) and \emph{LLM}, using qwen2.5-coder:7b (Q4\_K\_M quantisation) served locally by Ollama on a laptop GPU with 6\,GB of memory, a 12k-token context and temperature 0.1, with at most two AI patch attempts.
+We built four scenarios on the same five-commit base history of the demonstration service, each with a known answer (Table~\ref{tab:scen}). The \emph{supplier-feed} scenario is deliberately hard: the culprit commit changes only \emph{data}, so \texttt{git blame} on the failing line points at older, innocent code. The \emph{healthy-release} scenario ships a harmless change with background noise and checks for false positives. For each scenario an evaluation harness creates a fresh workspace and database, builds the Git history, executes the real service code to generate normal traffic and trigger requests, ingests the resulting logs through the API and runs the real pipeline up to the approval gate. Production deployment is excluded because it always requires a human.
+
+We compare two modes: \emph{heuristic} (no LLM: correlation-ranked diagnosis and revert) and \emph{LLM}, using qwen2.5-coder:7b (Q4\_K\_M quantisation) served locally by Ollama on a laptop GPU with 6\,GB of memory, a 12k-token context and temperature 0.1, with at most two AI patch attempts followed by the revert fallback. We record detection correctness, the rank of the true culprit, whether the diagnosis names it, the sequence of patch attempts and their validation results, the final status, wall-clock time and token usage.
 
 \begin{table}[t]
 \centering
@@ -341,7 +652,15 @@ healthy-release & none & false-positive check with background noise \\
 \end{table}
 
 \subsection{Results}
-Table~\ref{tab:results} reports the final results. \textbf{RQ1:} both modes detected all three incidents and correctly stayed silent on the healthy release. \textbf{RQ2:} the true culprit was ranked first in all three faulty scenarios, including supplier-feed, where it was found through the dependency-overlap signal (the top two scores tied at 0.40 and the tie was broken by recency). \textbf{RQ3:} the local LLM explained all three failures in plain language and named the culprit commit in two of three cases (confidence 0.9); in supplier-feed it described the symptom but named no commit. None of the six AI-generated patches passed validation. \textbf{RQ4:} every incorrect AI patch was rejected by deterministic checks, and the revert fallback produced validated candidates for two of the three incidents; the third was escalated as \textsc{validation\_failed}. No incorrect patch reached the approval gate in any run.
+Table~\ref{tab:results} reports the final results and Table~\ref{tab:perscen} the per-scenario detail of the LLM run.
+
+\textbf{RQ1 (detection).} Both modes detected all three incidents with the correct exception type and correctly stayed silent on the healthy release; each scenario produced between 31 and 44 log events and exactly one incident where one was expected.
+
+\textbf{RQ2 (correlation).} The true culprit was ranked first in all three faulty scenarios. In supplier-feed it was found through the dependency-overlap and deployment-timing signals ($0.20+0.15+0.05=0.40$), tying with the old pricing commit that \texttt{git blame} points at ($0.40+0.20+0.15+0.05=0.80$, halved to 0.40 because it was already in production); the tie was broken by recency. We report this narrow margin explicitly: the ranking is correct but fragile in this scenario.
+
+\textbf{RQ3 (diagnosis and repair).} The local LLM explained all three failures in plain language and named the culprit commit in two of three cases (confidence 0.9); in supplier-feed it described the symptom accurately but named no commit. None of the six AI-generated patches passed validation.
+
+\textbf{RQ4 (safety).} Every incorrect AI patch was rejected by deterministic checks, and the revert fallback produced validated candidates for two of the three incidents; the third was escalated as \textsc{validation\_failed}. No incorrect patch reached the approval gate in any run.
 
 \begin{table}[t]
 \centering
@@ -365,15 +684,32 @@ Mean LLM tokens in / out per incident & -- & $\approx$13.5k / 1.2k \\
 \end{tabular}
 \end{table}
 
+\begin{table}[t]
+\centering
+\caption{Per-scenario results of the local-LLM run}
+\label{tab:perscen}
+\footnotesize
+\setlength{\tabcolsep}{2.5pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccl@{}}
+\toprule
+Scenario & Events & Conf. & Time & Tokens in/out & Patch sequence $\rightarrow$ status \\
+\midrule
+empty-cart-average & 39 & 0.9 & 100.1\,s & 13,236 / 1,183 & AI\,\texttimes, AI\,\texttimes, revert\,\cmark{} $\rightarrow$ gate \\
+expired-coupon & 44 & 0.9 & 109.2\,s & 15,775 / 1,222 & AI\,\texttimes, AI\,\texttimes, revert\,\cmark{} $\rightarrow$ gate \\
+supplier-feed & 39 & 0.8 & 97.5\,s & 11,397 / 1,280 & AI\,\texttimes, AI\,\texttimes{} $\rightarrow$ validation failed \\
+healthy-release & 31 & -- & -- & -- & no incident (correct) \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 \subsection{Evaluation-Driven Improvements}
-The evaluation was run five times while the system was improved, and each run exposed a concrete weakness (Table~\ref{tab:runs}). In the first run, \texttt{git blame} ranked the supplier-feed culprit third and every LLM patch failed the syntax check because of indentation errors. Adding the dependency-overlap signal and restricting the keyword signal to the specific error moved the culprit to rank one in all scenarios; indentation-only repair made AI patches compile and produced regression tests that correctly failed on the buggy code, although the fixes themselves remained semantically wrong. A third AI attempt did not help the 7B model, whereas a revert fallback rescued two incidents. All changes were generic and covered by unit tests, rather than tuned to individual scenarios.
+The evaluation was run five times while the system was improved, and each run exposed a concrete weakness (Table~\ref{tab:runs}). In the first run, \texttt{git blame} ranked the supplier-feed culprit third and every LLM patch failed the syntax check because of indentation errors. Adding the dependency-overlap signal and restricting the keyword signal to the specific error moved the culprit to rank one in all scenarios. Indentation-only repair made AI patches compile and produced regression tests that correctly failed on the buggy code, although the fixes themselves remained semantically wrong. A third AI attempt did not help the 7B model, whereas a revert fallback rescued two incidents. All changes were generic and covered by unit tests, rather than tuned to individual scenarios.
 
 \begin{table}[t]
 \centering
 \caption{Evaluation-driven improvements (gate = reached approval gate or correctly silent; RCA = diagnosis names culprit)}
 \label{tab:runs}
-\footnotesize
-\setlength{\tabcolsep}{3pt}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}clcc@{}}
 \toprule
@@ -389,7 +725,7 @@ Run & Change since previous run & Heur.\ gate/RCA & LLM gate/RCA \\
 \end{table}
 
 \subsection{Failure Analysis of AI Patches}
-Table~\ref{tab:fail} lists why the local model's patches failed. In empty-cart-average the fix itself was correct, but the model's regression test exercised the wrong order; in expired-coupon the guard was incomplete; in supplier-feed the model ``fixed'' the crash by silently pricing the product at zero. Each failure was caught by a different deterministic check, which supports the design decision to treat every AI output as untrusted until validated.
+Table~\ref{tab:fail} lists why the local model's patches failed. In empty-cart-average the fix itself was correct, but the model's regression test exercised a non-empty order and therefore did not reproduce the incident. In expired-coupon the guard was incomplete. In supplier-feed the model tried to ``fix'' the crash by pricing a product without a price field at zero instead of reading the supplier's field; in the recorded final attempt, its own regression test asserted a subtotal of 0.00, the patched code returned 3499.0, and the test-suite step therefore failed (1 failed, 9 passed). Each failure was caught by a different deterministic check, which supports the decision to treat every AI output as untrusted until validated.
 
 \begin{table}[t]
 \centering
@@ -402,27 +738,52 @@ Scenario & Model behaviour & Caught by \\
 \midrule
 empty-cart-average & correct fix, but regression test used a non-empty order & its own regression test \\
 expired-coupon & guarded one field of \texttt{None}, still read another & its own regression test \\
-supplier-feed & priced the product at 0 instead of reading the new field & existing unit tests \\
+supplier-feed & priced the product at 0 instead of reading the new field & test-suite step \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+\subsection{Cost and Latency}
+The deterministic path processes an incident in about 5\,s, dominated by Git operations, the test suite and the staging start-up. With the local 7B model the end-to-end time rises to about 100\,s per incident, dominated by generation on a 6\,GB laptop GPU, with roughly 11--16k input and 1.2--1.3k output tokens per incident across one diagnosis and two patch attempts. Since the deterministic stages always run first, an engineer receives detection, ranked suspects and a heuristic diagnosis within seconds, regardless of the speed of the model.
+
 %====================================================================
 \section{Discussion}
+\label{sec:disc}
 %====================================================================
-\textbf{Diagnosis versus repair.} With a small local model, diagnosis was considerably more reliable than repair: the model explained every failure but produced no validated fix. This matches observations that repair quality grows with model size~\cite{xia2023apr} and that agents need validation feedback~\cite{kulsum2024vrpilot,bouzenia2025repairagent}. Because AION's provider layer is model-neutral, the same harness can measure stronger hosted models with a configuration change.
+\textbf{Diagnosis versus repair.} With a small local model, diagnosis was considerably more reliable than repair: the model explained every failure but produced no validated fix. This matches observations that repair quality grows with model size~\cite{xia2023apr} and that agents need validation feedback~\cite{kulsum2024vrpilot,bouzenia2025repairagent}. Because AION's provider layer is model-neutral, the same harness can measure stronger hosted models with a configuration change. A practical consequence is that even a weak model adds value in AION's design: its explanation helps the reviewer, while the deterministic stages supply the ranking and the safe fallback.
 
-\textbf{Safety by construction.} The approval guarantee does not depend on model behaviour: it is a property of the state machine, the SHA binding and the operator-defined validation commands. The evaluation shows the value of this separation: every wrong patch was stopped automatically, and every remaining decision went to a human.
+\textbf{Safety by construction.} The approval guarantee does not depend on model behaviour: it is a property of the state machine, the SHA binding and the operator-defined validation commands. The evaluation shows the value of this separation: every wrong patch was stopped automatically, and every remaining decision went to a human. This contrasts with fully autonomous repair agents, whose safety depends on the quality of the generated patch and the available tests.
 
-\textbf{Explainable correlation.} The weighted score is simple, but every component is a human-readable reason, which helps reviewers and also guides the LLM. The supplier-feed case shows that blame alone is insufficient when the culprit changes data rather than code; the dependency-overlap signal addressed this generically.
+\textbf{Explainable correlation.} The weighted score is simple, but every component is a human-readable reason, which helps reviewers and also guides the LLM. The supplier-feed case shows that blame alone is insufficient when the culprit changes data rather than code; the dependency-overlap signal addressed this generically, although only narrowly.
 
-\subsection{Limitations and Threats to Validity}
-The evaluation is small (four self-authored scenarios on one Python service) and each configuration was run once, so LLM variance is not measured; the results characterise behaviour and failure modes rather than general accuracy. Prompt guidance was adjusted after observing failures; to limit overfitting, every change was generic and unit-tested. Detection uses logs only, with fixed thresholds and hand-tuned weights. Staging and production are local processes, request replay covers idempotent requests only, and AI-generated code is validated in a separate process rather than a container sandbox. The current version has no authentication or role-based approvers, and logs may contain sensitive data when an external LLM is used; a local-model option mitigates the latter.
+\textbf{Evaluation as a design tool.} A single successful demonstration would have hidden all four weaknesses listed in Table~\ref{tab:runs}. Scenario-based evaluation with known answers, run after every change, turned anecdotes into measurable regressions and improvements, and we recommend it for any LLM-assisted operations tool.
+
+\textbf{Practical deployment.} The infrastructure stand-ins used in this work---a local validation runner, local staging and a fast-forward deployer---sit behind narrow interfaces. In an organisation they would be replaced by a CI system, a container-based staging environment and a GitOps controller, and the incident report could be exported as a ticket. Because a local model is supported, organisations that cannot send logs to an external provider can still use the LLM stages.
+
+\textbf{Ethical and security considerations.} Logs may contain personal data or secrets; sending them to an external LLM is a data-protection decision, which AION leaves to the operator by supporting local models. AI-generated code is executed during validation, so it must run with the least privilege available; the patch policy prevents the most obvious manipulations, but a container sandbox is preferable. Finally, a human approver must not become a rubber stamp: AION therefore shows the evidence, the reasons for every score and the validation output, not only a recommendation.
+
+%====================================================================
+\section{Threats to Validity}
+\label{sec:threats}
+%====================================================================
+\textbf{Internal validity.} The scenarios were authored by the same team that built the system, and prompt guidance was adjusted after observing failures. To limit overfitting, every change was generic (indentation repair, dependency signal, keyword scoping, revert fallback) and covered by a unit test, and the scenarios were designed to include an adversarial case for \texttt{git blame}.
+
+\textbf{External validity.} The evaluation is small---four scenarios on one Python service---and each configuration was run once, so LLM variance is not measured; the results characterise behaviour and failure modes rather than general accuracy. Results on a 7B quantised model do not predict the behaviour of larger hosted models in either direction.
+
+\textbf{Construct validity.} ``Diagnosis names the culprit'' measures whether the suspected commit is correct, not the quality of the explanation; ``reached the approval gate'' measures automated success, not whether an engineer would accept the candidate.
+
+\textbf{Limitations of the current system.} Detection uses logs only, with fixed thresholds and hand-tuned weights, and only Python stack traces are parsed. Staging and production are local processes, request replay covers idempotent requests only, and AI-generated code is validated in a separate process rather than a container sandbox. The current version has no authentication or role-based approvers and no automatic rollback.
 
 %====================================================================
 \section{Conclusion and Future Work}
+\label{sec:concl}
 %====================================================================
-AION shows that log-based detection, change correlation, LLM diagnosis, patch generation, validation and deployment can be connected in a single closed loop without giving AI the authority to change production. In our evaluation, detection and correlation were accurate and deterministic, a 7B local model was useful for diagnosis but not for repair, and deterministic validation together with a commit-bound human gate stopped every incorrect patch. Future work includes evaluating stronger hosted models with repeated runs, a larger benchmark of seeded incidents, metrics- and trace-based detection, support for further languages, integration with real CI/CD systems and container-based staging, sandboxed validation, secret redaction before prompting, role-based approval, and automatic rollback on failed verification.
+AION shows that log-based detection, change correlation, LLM diagnosis, patch generation, validation and deployment can be connected in a single closed loop without giving AI the authority to change production. Safety follows from the architecture---a lifecycle state machine with no automated path to approval, an approval bound to the validated commit, a code-enforced patch policy and operator-defined validation---rather than from the quality of the model. In our evaluation, detection and correlation were accurate and deterministic, a 7B local model was useful for diagnosis but not for repair, and deterministic validation together with a commit-bound human gate stopped every incorrect patch.
+
+Future work falls into three groups. \emph{Evaluation:} repeated runs with stronger hosted models, a larger benchmark of seeded incidents across several services, and studies with practising engineers. \emph{Coverage:} metrics- and trace-based detection, adaptive thresholds and learned correlation weights, support for further languages, and retrieval over runbooks and post-mortems. \emph{Operations:} integration with real CI/CD systems and container-based staging, sandboxed validation, secret and personal-data redaction before prompting, role-based and two-person approval, pull-request-based fixes, canary releases and automatic rollback on failed verification.
+
+\section*{Acknowledgment}
+The authors thank the Department of Computer Engineering, Ajeenkya D Y Patil School of Engineering, Pune, for its support of this work.
 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
