@@ -109,16 +109,16 @@ function render(blocks) {
     switch (b.t) {
       case 'chapter':
         chapter = b.n; chapKey = String(b.n); figN = 0; tabN = 0; eqN = 0;
-        tocRows.push({ kind: 'ch', no: String(b.n).padStart(2, '0'), title: b.titleCase || titleCase(b.title), key: 'ch' + b.n });
+        tocRows.push({ kind: 'ch', no: String(b.n).padStart(2, '0'), title: b.titleCase || titleCase(b.title), key: 'ch' + b.n, find: `CHAPTER ${b.n} ${b.title}` });
         out.push(chapterHeading(`CHAPTER ${b.n}`, b.title, 'ch' + b.n));
         break;
       case 'appendix':
         chapKey = b.n; figN = 0; tabN = 0; eqN = 0;
-        tocRows.push({ kind: 'app', no: '', title: `Appendix ${b.n}: ${titleCase(b.title)}`, key: 'app' + b.n });
+        tocRows.push({ kind: 'app', no: '', title: `Appendix ${b.n}: ${titleCase(b.title)}`, key: 'app' + b.n, find: `APPENDIX ${b.n} ${b.title}` });
         out.push(chapterHeading(`APPENDIX ${b.n}`, b.title, 'app' + b.n));
         break;
       case 'h2':
-        if (/^\d/.test(b.n)) tocRows.push({ kind: 'sec', no: b.n, title: titleCase(b.title), key: 'sec' + b.n });
+        if (/^\d/.test(b.n)) tocRows.push({ kind: 'sec', no: b.n, title: titleCase(b.title), key: 'sec' + b.n, find: `${b.n} ${b.title}` });
         out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, alignment: AlignmentType.LEFT, keepNext: true,
           spacing: { before: 480, after: 240, line: 276 }, children: [new TextRun({ text: `${b.n} ${b.title}`, font: FONT, size: 24, bold: true })] }));
         break;
@@ -184,7 +184,7 @@ function render(blocks) {
   return out;
 }
 function titleCase(s) {
-  const small = new Set(['and', 'of', 'the', 'to', 'for', 'in', 'on', 'a', 'w.r.t.']);
+  const small = new Set(['and', 'of', 'the', 'to', 'for', 'in', 'on', 'a', 'be', 'w.r.t.']);
   return s.toLowerCase().split(' ').map((w, i) => {
     if (w === 'sdlc' || w === 'np-hard' || w === 'uml' || w === 'dfd') return w.toUpperCase().replace('NP-HARD', 'NP-Hard');
     if (i > 0 && small.has(w)) return w;
@@ -192,11 +192,15 @@ function titleCase(s) {
   }).join(' ').replace('W.r.t.', 'w.r.t.').replace(': Sdlc', ': SDLC');
 }
 
+// Appendix B: list papers in reference-number order
+{ const idx = content.map((b, i) => b.t === 'paper' ? i : -1).filter(i => i >= 0);
+  const sorted = idx.map(i => content[i]).sort((x, y) => REFS[x.key].n - REFS[y.key].n);
+  idx.forEach((i, j) => { content[i] = sorted[j]; }); }
 const body = render(content);
 
 // ------------------------------------------------------------------ references
 const refOrder = Object.entries(REFS).sort((a, b) => a[1].n - b[1].n);
-tocRows.push({ kind: 'ref', no: '', title: 'References', key: 'refs' });
+tocRows.push({ kind: 'ref', no: '', title: 'References', key: 'refs', find: 'REFERENCES [1]' });
 const refBlocks = [chapterHeading('', 'REFERENCES', 'refs')];
 refBlocks[0] = new Paragraph({ heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER, pageBreakBefore: true, spacing: { after: 360, line: 360 },
   children: [new TextRun({ text: 'REFERENCES', font: FONT, size: 28, bold: true })] });
@@ -423,5 +427,6 @@ const doc = new Document({
   ],
 });
 
+fs.writeFileSync(path.join(__dirname, 'lists.json'), JSON.stringify({ tocRows, figList, tabList }));
 Packer.toBuffer(doc).then(buf => { fs.writeFileSync(OUT, buf); console.log('wrote', OUT, 'figs', figList.length, 'tables', tabList.length, 'refs', refOrder.length); });
 module.exports = { figList, tabList, tocRows };

@@ -116,11 +116,6 @@ module.exports = [
       ['Display', '1920 × 1080', '1920 × 1080 or higher'],
     ] },
   { t: 'h2', n: '4.4', title: 'ANALYSIS MODELS: SDLC MODEL TO BE APPLIED' },
-  { t: 'p', text: 'The project follows the **incremental model** (Figure 4.1): the system is delivered in increments, each passing through requirements, design, implementation and testing. It was chosen because the main risks lie in the AI stages, which can only be judged by running them, because every increment yields a usable system for review, and because the evaluation of one increment sets the requirements of the next.' },
+  { t: 'p', text: 'The project follows the **incremental model** (Figure 4.1): the system is delivered in increments, each passing through requirements, design, implementation and testing. It was chosen because the main risks lie in the AI stages, which can only be judged by running them, because every increment yields a usable system for review, and because the evaluation of one increment sets the requirements of the next. Increment 1 delivered the closed-loop MVP, Increment 2 the local LLM and evaluation, and Increment 3 (Semester II) adds hardening and integration.' },
   { t: 'fig', file: 'f41.png', w: 5.8, title: 'Incremental SDLC model applied to AION', legend: 'Each increment passes through all four phases; darker shading indicates later phases.' },
-  { t: 'bullets', items: [
-    '**Increment 1 (MVP):** the complete closed loop with the deterministic analyser and revert-based fixes.',
-    '**Increment 2:** local LLM, four bug scenarios, the evaluation harness and the fixes it motivated.',
-    '**Increment 3 (Semester II):** authentication, sandboxing, redaction, CI integration and stronger models.',
-  ] },
 ];
