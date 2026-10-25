@@ -1,0 +1,36 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[
+  font=\small,
+  stage/.style={draw, fill=white, rounded corners=3pt, minimum width=3.05cm, minimum height=1.2cm, align=center, line width=0.6pt},
+  gate/.style={stage, fill=gray!30, line width=1.1pt},
+  ext/.style={draw, dashed, rounded corners=3pt, minimum width=3.0cm, minimum height=0.8cm, align=center, fill=white, line width=0.6pt},
+  num/.style={circle, draw, fill=white, inner sep=1pt, font=\footnotesize\bfseries},
+]
+\node[stage] (s1) at (0,0) {\textbf{Log Ingestion}\\ \footnotesize parse, normalise, mask};
+\node[stage, right=0.7cm of s1] (s2) {\textbf{Dedup. \& Detection}\\ \footnotesize signatures, spike test};
+\node[stage, right=0.7cm of s2] (s3) {\textbf{Change Correlation}\\ \footnotesize ranked suspects};
+\node[stage, right=0.7cm of s3] (s4) {\textbf{Grounded RCA}\\ \footnotesize evidence-cited};
+\node[stage, below=1.0cm of s4] (s5) {\textbf{Patch Generation}\\ \footnotesize edits + regression test};
+\node[stage, left=0.7cm of s5] (s6) {\textbf{Validation}\\ \footnotesize tests, staging, replay};
+\node[gate, left=0.7cm of s6] (s7) {\textbf{Human Approval}\\ \footnotesize bound to commit SHA};
+\node[stage, left=0.7cm of s7] (s8) {\textbf{Deploy \& Verify}\\ \footnotesize fast-forward, replay};
+\foreach \n/\k in {s1/1,s2/2,s3/3,s4/4,s5/5,s6/6,s7/7,s8/8}{\node[num] at (\n.north west) {\k};}
+\begin{scope}[on background layer]
+\node[draw, fill=gray!8, rounded corners=6pt, fit=(s1)(s4)(s5)(s8), inner sep=0.4cm, line width=0.6pt, label={[font=\footnotesize\bfseries, anchor=south west]north west:AION PLATFORM}] (plat) {};
+\end{scope}
+\node[ext, anchor=east, minimum height=3.2cm, minimum width=1.9cm] (prod) at ($(plat.west)+(-0.8,0)$) {\textbf{Production}\\\textbf{Service}\\ \footnotesize JSON logs};
+\node[ext, above=0.6cm of s3] (git) {\textbf{Git Repository}\\ \footnotesize history, blame, worktrees};
+\node[ext, above=0.6cm of s4] (llm) {\textbf{LLM}\\ \footnotesize Claude API or local model};
+\node[ext, below=0.6cm of s7] (eng) {\textbf{Engineer / SRE}\\ \footnotesize reviews, approves};
+\node[ext, below=0.6cm of s5, minimum width=6.9cm] (aud) {\textbf{Incident records \& append-only audit trail}};
+\draw[arr] (s1) -- (s2); \draw[arr] (s2) -- (s3); \draw[arr] (s3) -- (s4); \draw[arr] (s4) -- (s5);
+\draw[arr] ([yshift=5pt]s5.west) -- ([yshift=5pt]s6.east); \draw[arr] (s6) -- (s7); \draw[arr] (s7) -- (s8);
+\draw[arr, dashed] ([yshift=-6pt]s6.east) -- node[below, font=\scriptsize]{repair} ([yshift=-6pt]s5.west);
+\draw[arr] (prod.east |- s1) -- node[above, font=\footnotesize]{logs} (s1.west);
+\draw[arr] (s8.west) -- node[above, font=\footnotesize]{deploy} (prod.east |- s8);
+\draw[arr, dashed] (git) -- (s3); \draw[arr, dashed] (llm) -- (s4);
+\draw[arr] (eng) -- (s7);
+\draw[arr, dashed] (s6.south) |- (aud.west);
+\end{tikzpicture}
+\end{document}

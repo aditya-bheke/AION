@@ -1,0 +1,27 @@
+\input{pre}
+\usepackage{pgfgantt}
+\begin{document}
+\begin{ganttchart}[x unit=1.05cm, y unit chart=0.62cm, y unit title=0.6cm, vgrid={*1{draw=black!25}}, hgrid={*1{draw=black!12}},
+  title label font=\small\bfseries, bar/.append style={fill=gray!55, draw=black}, bar height=0.5, bar label font=\small,
+  group/.append style={fill=black}, group label font=\small\bfseries, group label node/.append style={left=6pt}, group height=0.25, group peaks height=0.12,
+  milestone/.append style={fill=black}, milestone label font=\small\itshape, inline=false]{1}{10}
+\gantttitle{2026}{6} \gantttitle{2027}{4} \\
+\gantttitle{Jul}{1}\gantttitle{Aug}{1}\gantttitle{Sep}{1}\gantttitle{Oct}{1}\gantttitle{Nov}{1}\gantttitle{Dec}{1}\gantttitle{Jan}{1}\gantttitle{Feb}{1}\gantttitle{Mar}{1}\gantttitle{Apr}{1} \\
+\ganttgroup{Semester I (Project Work I)}{1}{5} \\
+\ganttbar{Topic selection and problem definition}{1}{1} \\
+\ganttbar{Literature survey}{1}{2} \\
+\ganttbar{Requirement analysis and feasibility}{2}{2} \\
+\ganttbar{System design and modelling}{2}{3} \\
+\ganttbar{Core pipeline implementation (MVP)}{3}{4} \\
+\ganttbar{Local LLM integration and evaluation}{4}{4} \\
+\ganttbar{Synopsis, reviews and preliminary report}{4}{5} \\
+\ganttmilestone{Preliminary report submitted}{5} \\
+\ganttgroup{Semester II (Project Work II)}{6}{10} \\
+\ganttbar{Security hardening}{6}{7} \\
+\ganttbar{CI/CD and pull-request integration}{7}{8} \\
+\ganttbar{Extended evaluation (stronger models)}{8}{9} \\
+\ganttbar{Research paper submission}{9}{9} \\
+\ganttbar{Final testing, documentation, final report}{9}{10} \\
+\ganttmilestone{Final submission}{10}
+\end{ganttchart}
+\end{document}

@@ -1,0 +1,19 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\small, ent/.style={draw, line width=0.8pt, minimum width=3.0cm, minimum height=1.1cm, align=center, font=\small\bfseries},
+  proc/.style={circle, draw, line width=0.8pt, minimum size=3.4cm, align=center}, lab/.style={font=\footnotesize, align=center, fill=white, inner sep=1.5pt}]
+\node[proc] (p) at (0,0) {\textbf{0.0}\\[2pt] \textbf{AION}\\ \textbf{Incident Response}\\ \textbf{System}};
+\node[ent] (prod) at (-6.2,2.4) {Production\\ Service};
+\node[ent] (eng) at (-6.2,-2.4) {Engineer / SRE};
+\node[ent] (git) at (6.2,2.4) {Git Repository};
+\node[ent] (llm) at (6.2,-2.4) {LLM Provider};
+\draw[arr] ([yshift=4pt]prod.east) -- node[lab, above, sloped] {structured JSON logs} ([yshift=10pt]p.west);
+\draw[arr] ([yshift=-14pt]p.west) to[bend left=8] node[lab, below, sloped] {deployed fix, replayed requests} ([yshift=-6pt]prod.east);
+\draw[arr] ([yshift=-2pt]p.south west) -- node[lab, below, sloped] {report, diff, validation results} ([yshift=-6pt]eng.east);
+\draw[arr] ([yshift=8pt]eng.east) -- node[lab, above, sloped] {approve / reject decision} ([xshift=-10pt,yshift=6pt]p.south west);
+\draw[arr] ([yshift=4pt]git.west) -- node[lab, above, sloped] {commits, blame, diffs} ([yshift=10pt]p.east);
+\draw[arr] ([yshift=-14pt]p.east) to[bend right=8] node[lab, below, sloped] {patch branch, merge} ([yshift=-6pt]git.west);
+\draw[arr] ([yshift=-2pt]p.south east) -- node[lab, below, sloped] {evidence pack, prompts} ([yshift=-6pt]llm.west);
+\draw[arr] ([yshift=8pt]llm.west) -- node[lab, above, sloped] {diagnosis, code edits} ([xshift=10pt,yshift=6pt]p.south east);
+\end{tikzpicture}
+\end{document}

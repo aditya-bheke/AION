@@ -1,0 +1,39 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\small,
+  uc/.style={draw, ellipse, line width=0.6pt, minimum width=3.4cm, minimum height=0.95cm, align=center, inner sep=1pt},
+  inc/.style={-{Stealth[length=2mm]}, dashed, line width=0.5pt}]
+\tikzset{actor/.pic={
+  \draw[line width=0.7pt] (0,0.62) circle (0.17);
+  \draw[line width=0.7pt] (0,0.45) -- (0,-0.05) (-0.32,0.28) -- (0.32,0.28) (0,-0.05) -- (-0.25,-0.5) (0,-0.05) -- (0.25,-0.5);}}
+\draw[line width=0.8pt] (-0.4,-1.2) rectangle (9.6,8.0);
+\node[anchor=north, font=\small\bfseries] at (4.6,7.95) {AION System};
+% right column: automated
+\node[uc] (u1) at (6.7,6.6) {Ingest Logs};
+\node[uc] (u2) at (6.7,5.3) {Detect Incident};
+\node[uc] (u3) at (6.7,4.0) {Correlate Commits};
+\node[uc] (u4) at (6.7,2.7) {Analyse Root Cause};
+\node[uc] (u5) at (6.7,1.4) {Generate Patch};
+\node[uc] (u6) at (6.7,0.0) {Validate Patch};
+% left column: engineer
+\node[uc] (v1) at (1.9,5.3) {Review Incident};
+\node[uc] (v2) at (1.9,3.6) {Approve / Reject Fix};
+\node[uc] (v3) at (1.9,1.9) {Deploy Fix};
+\node[uc] (v4) at (1.9,0.2) {View Audit Trail};
+% actors
+\pic at (-2.3,3.0) {actor}; \node[align=center, font=\small] (ae) at (-2.3,2.15) {Engineer /\\ SRE};
+\pic at (11.7,6.6) {actor}; \node[align=center] at (11.7,5.75) {Production\\ Service};
+\pic at (11.7,4.1) {actor}; \node[align=center] at (11.7,3.25) {Git\\ Repository};
+\pic at (11.7,1.6) {actor}; \node[align=center] at (11.7,0.75) {LLM\\ Provider};
+\coordinate (E) at (-1.95,3.15);
+\foreach \v in {v1,v2,v3,v4}{\draw[line width=0.5pt] (E) -- (\v.west);}
+\draw[line width=0.5pt] (11.35,6.75) -- (u1.east);
+\draw[line width=0.5pt] (11.35,4.25) -- (u3.east);
+\draw[line width=0.5pt] (11.35,1.75) -- (u4.east);
+\draw[line width=0.5pt] (11.35,1.75) -- (u5.east);
+\draw[inc] (u1) -- node[right, font=\scriptsize] {\guillemotleft include\guillemotright} (u2);
+\draw[inc] (u5) -- node[right, font=\scriptsize] {\guillemotleft include\guillemotright} (u6);
+\draw[inc] (v2) -- node[left, font=\scriptsize] {\guillemotleft include\guillemotright} (v1);
+\draw[inc] (v3) -- node[left, font=\scriptsize] {\guillemotleft include\guillemotright} (v2);
+\end{tikzpicture}
+\end{document}

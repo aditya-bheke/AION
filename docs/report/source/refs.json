@@ -1,0 +1,619 @@
+{
+ "chen2020icm": {
+  "n": 1,
+  "runs": [
+   {
+    "text": "Z. Chen ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “Towards intelligent incident management: Why we need it and how we make it,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 28th ACM Joint Meeting on European Software Engineering Conf. and Symp. Foundations of Software Engineering (ESEC/FSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2020, pp. 1487–1497. doi: 10.1145/3368089.3417055.",
+    "italics": false
+   }
+  ]
+ },
+ "notaro2021survey": {
+  "n": 2,
+  "runs": [
+   {
+    "text": "P. Notaro, J. Cardoso, and M. Gerndt, “A survey of AIOps methods for failure management,” ",
+    "italics": false
+   },
+   {
+    "text": "ACM Transactions on Intelligent Systems and Technology",
+    "italics": true
+   },
+   {
+    "text": ", vol. 12, no. 6, pp. 81:1–81:45, 2021, doi: 10.1145/3483424.",
+    "italics": false
+   }
+  ]
+ },
+ "zhang2026aiopsllm": {
+  "n": 3,
+  "runs": [
+   {
+    "text": "L. Zhang, T. Jia, M. Jia, ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “A survey of AIOps in the era of large language models,” ",
+    "italics": false
+   },
+   {
+    "text": "ACM Computing Surveys",
+    "italics": true
+   },
+   {
+    "text": ", 2026, doi: 10.1145/3746635.",
+    "italics": false
+   }
+  ]
+ },
+ "he2021survey": {
+  "n": 4,
+  "runs": [
+   {
+    "text": "S. He, P. He, Z. Chen, T. Yang, Y. Su, and M. R. Lyu, “A survey on automated log analysis for reliability engineering,” ",
+    "italics": false
+   },
+   {
+    "text": "ACM Computing Surveys",
+    "italics": true
+   },
+   {
+    "text": ", vol. 54, no. 6, pp. 130:1–130:37, 2021, doi: 10.1145/3460345.",
+    "italics": false
+   }
+  ]
+ },
+ "ahmed2023recommending": {
+  "n": 5,
+  "runs": [
+   {
+    "text": "T. Ahmed ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “Recommending root-cause and mitigation steps for cloud incidents using large language models,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE/ACM 45th Int. Conf. Software Engineering (ICSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2023.",
+    "italics": false
+   }
+  ]
+ },
+ "chen2024rcacopilot": {
+  "n": 6,
+  "runs": [
+   {
+    "text": "Y. Chen ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “Automatic root cause analysis via large language models for cloud incidents,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 19th European Conf. Computer Systems (EuroSys)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "integrating2025llmobs": {
+  "n": 7,
+  "runs": [
+   {
+    "text": "“Integrating large language models with cloud-native observability for automated root cause analysis and remediation,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 3rd Int. Conf. Artificial Intelligence, Systems and Network Security",
+    "italics": true
+   },
+   {
+    "text": ", 2025. doi: 10.1145/3797161.3797213.",
+    "italics": false
+   }
+  ]
+ },
+ "zhu2023loghub": {
+  "n": 8,
+  "runs": [
+   {
+    "text": "J. Zhu, S. He, P. He, J. Liu, and M. R. Lyu, “Loghub: A large collection of system log datasets for AI-driven log analytics,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE 34th Int. Symp. Software Reliability Engineering (ISSRE)",
+    "italics": true
+   },
+   {
+    "text": ", 2023.",
+    "italics": false
+   }
+  ]
+ },
+ "he2017drain": {
+  "n": 9,
+  "runs": [
+   {
+    "text": "P. He, J. Zhu, Z. Zheng, and M. R. Lyu, “Drain: An online log parsing approach with fixed depth tree,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE Int. Conf. Web Services (ICWS)",
+    "italics": true
+   },
+   {
+    "text": ", 2017, pp. 33–40. doi: 10.1109/ICWS.2017.13.",
+    "italics": false
+   }
+  ]
+ },
+ "jiang2024lilac": {
+  "n": 10,
+  "runs": [
+   {
+    "text": "Z. Jiang ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “LILAC: Log parsing using LLMs with adaptive parsing cache,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. ACM Int. Conf. Foundations of Software Engineering (FSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "du2017deeplog": {
+  "n": 11,
+  "runs": [
+   {
+    "text": "M. Du, F. Li, G. Zheng, and V. Srikumar, “DeepLog: Anomaly detection and diagnosis from system logs through deep learning,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. ACM SIGSAC Conf. Computer and Communications Security (CCS)",
+    "italics": true
+   },
+   {
+    "text": ", 2017, pp. 1285–1298. doi: 10.1145/3133956.3134015.",
+    "italics": false
+   }
+  ]
+ },
+ "meng2019loganomaly": {
+  "n": 12,
+  "runs": [
+   {
+    "text": "W. Meng ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “LogAnomaly: Unsupervised detection of sequential and quantitative anomalies in unstructured logs,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 28th Int. Joint Conf. Artificial Intelligence (IJCAI)",
+    "italics": true
+   },
+   {
+    "text": ", 2019, pp. 4739–4745. doi: 10.24963/ijcai.2019/658.",
+    "italics": false
+   }
+  ]
+ },
+ "le2021neurallog": {
+  "n": 13,
+  "runs": [
+   {
+    "text": "V.-H. Le and H. Zhang, “Log-based anomaly detection without log parsing,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 36th IEEE/ACM Int. Conf. Automated Software Engineering (ASE)",
+    "italics": true
+   },
+   {
+    "text": ", 2021, pp. 492–504. doi: 10.1109/ASE51524.2021.9678773.",
+    "italics": false
+   }
+  ]
+ },
+ "guo2021logbert": {
+  "n": 14,
+  "runs": [
+   {
+    "text": "H. Guo, S. Yuan, and X. Wu, “LogBERT: Log anomaly detection via BERT.” arXiv:2103.04475, 2021.",
+    "italics": false
+   }
+  ]
+ },
+ "lee2023lanobert": {
+  "n": 15,
+  "runs": [
+   {
+    "text": "Y. Lee, J. Kim, and P. Kang, “LAnoBERT: System log anomaly detection based on BERT masked language model.” arXiv:2111.09564, 2023.",
+    "italics": false
+   }
+  ]
+ },
+ "ma2026llm4log": {
+  "n": 16,
+  "runs": [
+   {
+    "text": "Z. Ma, J. Yang, and T.-H. Chen, “LLM4Log: A systematic review of large language model-based log analysis.” arXiv:2604.16359, 2026.",
+    "italics": false
+   }
+  ]
+ },
+ "delacruz2026loganomaly": {
+  "n": 17,
+  "runs": [
+   {
+    "text": "M. De la Cruz Cabello, T. P. Sales, and M. R. Machado, “Log anomaly detection in AIOps: A real-world implementation using large language models,” ",
+    "italics": false
+   },
+   {
+    "text": "Systems and Soft Computing",
+    "italics": true
+   },
+   {
+    "text": ", vol. 8, p. 200475, 2026, doi: 10.1016/j.sasc.2026.200475.",
+    "italics": false
+   }
+  ]
+ },
+ "roy2024exploring": {
+  "n": 18,
+  "runs": [
+   {
+    "text": "D. Roy ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “Exploring LLM-based agents for root cause analysis,” in ",
+    "italics": false
+   },
+   {
+    "text": "Companion Proc. 32nd ACM Int. Conf. Foundations of Software Engineering (FSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "wu2020microrca": {
+  "n": 19,
+  "runs": [
+   {
+    "text": "L. Wu, J. Tordsson, E. Elmroth, and O. Kao, “MicroRCA: Root cause localization of performance issues in microservices,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE/IFIP Network Operations and Management Symp. (NOMS)",
+    "italics": true
+   },
+   {
+    "text": ", 2020.",
+    "italics": false
+   }
+  ]
+ },
+ "ma2020automap": {
+  "n": 20,
+  "runs": [
+   {
+    "text": "M. Ma, J. Xu, Y. Wang, P. Chen, Z. Zhang, and P. Wang, “AutoMAP: Diagnose your microservice-based web applications automatically,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. The Web Conference (WWW)",
+    "italics": true
+   },
+   {
+    "text": ", 2020, pp. 246–258. doi: 10.1145/3366423.3380111.",
+    "italics": false
+   }
+  ]
+ },
+ "soldani2022survey": {
+  "n": 21,
+  "runs": [
+   {
+    "text": "J. Soldani and A. Brogi, “Anomaly detection and failure root cause analysis in (micro)service-based cloud applications: A survey,” ",
+    "italics": false
+   },
+   {
+    "text": "ACM Computing Surveys",
+    "italics": true
+   },
+   {
+    "text": ", vol. 55, no. 3, pp. 1–39, 2022.",
+    "italics": false
+   }
+  ]
+ },
+ "wittkopp2023progressing": {
+  "n": 22,
+  "runs": [
+   {
+    "text": "T. Wittkopp, A. Acker, and O. Kao, “Progressing from anomaly detection to automated log labeling and pioneering root cause analysis,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. AIOps Workshop, IEEE Int. Conf. Data Mining (ICDM)",
+    "italics": true
+   },
+   {
+    "text": ", 2023.",
+    "italics": false
+   }
+  ]
+ },
+ "sliwerski2005changes": {
+  "n": 23,
+  "runs": [
+   {
+    "text": "J. Śliwerski, T. Zimmermann, and A. Zeller, “When do changes induce fixes?” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 2nd Int. Workshop on Mining Software Repositories (MSR)",
+    "italics": true
+   },
+   {
+    "text": ", 2005, pp. 24–28.",
+    "italics": false
+   }
+  ]
+ },
+ "legoues2019apr": {
+  "n": 24,
+  "runs": [
+   {
+    "text": "C. Le Goues, M. Pradel, and A. Roychoudhury, “Automated program repair,” ",
+    "italics": false
+   },
+   {
+    "text": "Communications of the ACM",
+    "italics": true
+   },
+   {
+    "text": ", vol. 62, no. 12, pp. 56–65, 2019, doi: 10.1145/3318162.",
+    "italics": false
+   }
+  ]
+ },
+ "xia2022alpharepair": {
+  "n": 25,
+  "runs": [
+   {
+    "text": "C. S. Xia and L. Zhang, “Less training, more repairing please: Revisiting automated program repair via zero-shot learning,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 30th ACM ESEC/FSE",
+    "italics": true
+   },
+   {
+    "text": ", 2022. doi: 10.1145/3540250.3549101.",
+    "italics": false
+   }
+  ]
+ },
+ "xia2023apr": {
+  "n": 26,
+  "runs": [
+   {
+    "text": "C. S. Xia, Y. Wei, and L. Zhang, “Automated program repair in the era of large pre-trained language models,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE/ACM 45th Int. Conf. Software Engineering (ICSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2023.",
+    "italics": false
+   }
+  ]
+ },
+ "zhang2024slr": {
+  "n": 27,
+  "runs": [
+   {
+    "text": "Q. Zhang ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “A systematic literature review on large language models for automated program repair.” arXiv:2405.01466, 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "bouzenia2025repairagent": {
+  "n": 28,
+  "runs": [
+   {
+    "text": "I. Bouzenia, P. Devanbu, and M. Pradel, “RepairAgent: An autonomous, LLM-based agent for program repair,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. IEEE/ACM 47th Int. Conf. Software Engineering (ICSE)",
+    "italics": true
+   },
+   {
+    "text": ", 2025.",
+    "italics": false
+   }
+  ]
+ },
+ "zhang2024autocoderover": {
+  "n": 29,
+  "runs": [
+   {
+    "text": "Y. Zhang, H. Ruan, Z. Fan, and A. Roychoudhury, “AutoCodeRover: Autonomous program improvement,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 33rd ACM SIGSOFT Int. Symp. Software Testing and Analysis (ISSTA)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "yang2024sweagent": {
+  "n": 30,
+  "runs": [
+   {
+    "text": "J. Yang ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “SWE-agent: Agent-computer interfaces enable automated software engineering,” in ",
+    "italics": false
+   },
+   {
+    "text": "Advances in Neural Information Processing Systems (NeurIPS)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "jimenez2024swebench": {
+  "n": 31,
+  "runs": [
+   {
+    "text": "C. E. Jimenez ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “SWE-bench: Can language models resolve real-world GitHub issues?” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 12th Int. Conf. Learning Representations (ICLR)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "kulsum2024vrpilot": {
+  "n": 32,
+  "runs": [
+   {
+    "text": "U. Kulsum, H. Zhu, B. Xu, and M. d’Amorim, “A case study of LLM for automated vulnerability repair: Assessing impact of reasoning and patch validation feedback,” in ",
+    "italics": false
+   },
+   {
+    "text": "Proc. 1st ACM Int. Conf. AI-Powered Software (AIware)",
+    "italics": true
+   },
+   {
+    "text": ", 2024.",
+    "italics": false
+   }
+  ]
+ },
+ "lewis2020rag": {
+  "n": 33,
+  "runs": [
+   {
+    "text": "P. Lewis ",
+    "italics": false
+   },
+   {
+    "text": "et al.",
+    "italics": true
+   },
+   {
+    "text": ", “Retrieval-augmented generation for knowledge-intensive NLP tasks,” in ",
+    "italics": false
+   },
+   {
+    "text": "Advances in Neural Information Processing Systems (NeurIPS)",
+    "italics": true
+   },
+   {
+    "text": ", 2020.",
+    "italics": false
+   }
+  ]
+ }
+}

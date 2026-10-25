@@ -1,0 +1,32 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  hd/.style={draw, line width=0.7pt, fill=gray!20, minimum width=2.0cm, minimum height=0.95cm, align=center, font=\footnotesize\bfseries},
+  msg/.style={-{Stealth[length=2.2mm]}, line width=0.6pt}, ret/.style={-{Stealth[length=2.2mm]}, dashed, line width=0.5pt},
+  act/.style={draw, fill=white, line width=0.5pt, minimum width=0.22cm, inner sep=0pt}]
+\def\H{15.6}
+\foreach \n/\t [count=\i] in {prod/{Production\\ Service}, ing/{Ingest API \&\\ Detector}, orc/{Pipeline\\ Orchestrator}, cor/{Correlator\\ \& GitRepo}, llm/{LLM\\ Provider}, val/{Validation\\ Runner}, eng/{Engineer via\\ Dashboard/API}, dep/{Deployer}}{
+  \node[hd] (\n) at ({(\i-1)*2.35},0) {\t};
+  \draw[dashed, line width=0.4pt] (\n.south) -- ++(0,-\H);
+  \coordinate (x\n) at ({(\i-1)*2.35},0);
+}
+\newcommand{\M}[5]{\draw[#5] ($(x#1)+(0,-#3)$) -- node[above=1pt, font=\scriptsize, align=center, fill=white, inner sep=1pt] {#4} ($(x#2)+(0,-#3)$);}
+% activation bars
+\foreach \n/\a/\b in {ing/1.0/2.2, orc/2.0/9.9, cor/2.6/3.9, llm/4.4/6.3, val/6.8/8.4, dep/12.0/14.8, eng/9.4/12.6}{
+  \node[act, minimum height={(\b-\a)*1cm}, anchor=north] at ($(x\n)+(0,-\a)$) {};}
+\M{prod}{ing}{1.2}{1: POST JSON error logs}{msg}
+\M{ing}{orc}{2.0}{2: incident opened (spike)}{msg}
+\M{orc}{cor}{2.8}{3: correlate(incident)}{msg}
+\M{cor}{orc}{3.7}{4: ranked suspects + reasons}{ret}
+\M{orc}{llm}{4.6}{5: analyse(evidence pack)}{msg}
+\M{llm}{orc}{5.4}{6: grounded RCA + patch edits}{ret}
+\M{orc}{val}{7.0}{7: validate(patch branch)}{msg}
+\M{val}{orc}{8.2}{8: tests, staging, replay passed}{ret}
+\M{orc}{eng}{9.6}{9: awaiting approval}{msg}
+\draw[msg] ($(xeng)+(0.11,-10.4)$) -- ++(0.7,0) -- ++(0,-0.6) -- node[below, font=\scriptsize, align=center, fill=white, inner sep=1pt] {10: approve(commit SHA)} ++(-0.6,0);
+\M{eng}{dep}{12.2}{11: deploy(incident)}{msg}
+\draw[msg] ($(xdep)+(0.11,-12.9)$) -- ++(0.7,0) -- ++(0,-0.6) -- node[below, font=\scriptsize, align=center, fill=white, inner sep=1pt] {12: preflight,\\ fast-forward merge} ++(-0.6,0);
+\M{dep}{prod}{14.6}{13: verify running commit, replay requests}{msg}
+\M{dep}{eng}{15.3}{14: incident resolved}{ret}
+\end{tikzpicture}
+\end{document}

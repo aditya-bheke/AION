@@ -1,0 +1,54 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  comp/.style={draw, line width=0.65pt, minimum width=3.3cm, minimum height=1.05cm, align=center, fill=white,
+     append after command={\pgfextra{\let\n\tikzlastnode
+       \draw[line width=0.45pt, fill=white] ([xshift=-0.42cm,yshift=-0.12cm]\n.north east) rectangle ++(0.26,-0.32);
+       \draw[line width=0.45pt, fill=white] ([xshift=-0.48cm,yshift=-0.18cm]\n.north east) rectangle ++(0.12,-0.06);
+       \draw[line width=0.45pt, fill=white] ([xshift=-0.48cm,yshift=-0.32cm]\n.north east) rectangle ++(0.12,-0.06);}}},
+  ext/.style={draw, dashed, line width=0.65pt, minimum width=3.0cm, minimum height=0.95cm, align=center},
+  dep/.style={-{Stealth[length=2.1mm]}, dashed, line width=0.5pt}]
+\node[comp] (api) at (4.2,0) {\guillemotleft component\guillemotright\\ \textbf{REST API}\\ (FastAPI)};
+\node[comp] (col) at (0,0) {\guillemotleft component\guillemotright\\ \textbf{Log Collector}};
+\node[comp] (aud) at (8.4,0) {\guillemotleft component\guillemotright\\ \textbf{Audit Trail}};
+\node[comp] (det) at (0,-2.3) {\guillemotleft component\guillemotright\\ \textbf{Ingest \& Detector}};
+\node[comp] (orc) at (4.2,-2.3) {\guillemotleft component\guillemotright\\ \textbf{Worker \& Orchestrator}};
+\node[comp] (fsm) at (8.4,-2.3) {\guillemotleft component\guillemotright\\ \textbf{Lifecycle FSM}};
+\node[comp] (cor) at (0,-4.6) {\guillemotleft component\guillemotright\\ \textbf{Git Correlator}};
+\node[comp] (ai) at (4.2,-4.6) {\guillemotleft component\guillemotright\\ \textbf{AI Layer}\\ (evidence, RCA, patcher)};
+\node[comp] (prv) at (8.4,-4.6) {\guillemotleft component\guillemotright\\ \textbf{LLM Providers}};
+\node[comp] (rem) at (0,-6.9) {\guillemotleft component\guillemotright\\ \textbf{Remediation}\\ (worktree, policy)};
+\node[comp] (val) at (4.2,-6.9) {\guillemotleft component\guillemotright\\ \textbf{Validation Runner}};
+\node[comp] (dpl) at (8.4,-6.9) {\guillemotleft component\guillemotright\\ \textbf{Deployer}};
+\node[comp] (orm) at (4.2,-9.2) {\guillemotleft component\guillemotright\\ \textbf{Persistence}\\ (SQLAlchemy ORM)};
+\begin{scope}[on background layer]\node[draw, line width=0.8pt, rounded corners=4pt, fit=(col)(aud)(rem)(dpl)(orm), inner sep=0.35cm, label={[font=\footnotesize\bfseries, anchor=south west]north west:AION backend (Python process)}] (be) {};\end{scope}
+\node[ext] (ui) at (4.2,2.6) {\textbf{Web Dashboard}\\ (React, Vite)};
+\node[ext] (svc) at (-4.0,-1.15) {\textbf{Monitored service}\\ log file / HTTP};
+\node[ext] (git) at (-4.0,-5.75) {\textbf{Git repository}\\ (git CLI)};
+\node[ext] (llm) at (12.4,-4.6) {\textbf{Claude API /}\\ \textbf{local LLM}};
+\node[ext] (env) at (12.4,-6.9) {\textbf{Staging and}\\ \textbf{production}};
+\node[ext] (db) at (4.2,-11.5) {\textbf{SQLite database}\\ (WAL mode)};
+\draw[dep] (ui) -- node[right, font=\scriptsize]{HTTP/JSON} (api);
+\draw[dep] (svc) |- (col);
+\draw[dep] (svc) |- (det);
+\draw[dep] (col) -- (det);
+\draw[dep] (api) -- (det);
+\draw[dep] (api) -- (orc);
+\draw[dep] (det) -- node[above, font=\scriptsize]{enqueue} (orc);
+\draw[dep] (orc) -- (fsm);
+\draw[dep] (fsm) -- (aud);
+\draw[dep] (orc) -- (cor);
+\draw[dep] (orc) -- (ai);
+\draw[dep] (orc.south west) -- (rem.north east);
+\draw[dep] (ai) -- (prv);
+\draw[dep] (prv) -- (llm);
+\draw[dep] (rem) -- (val);
+\draw[dep] (orc.south east) -- (dpl.north west);
+\draw[dep] (cor) -- (git);
+\draw[dep] (rem) -| (git);
+\draw[dep] (val.south) -- ++(0,-0.5) -| (env.south);
+\draw[dep] (dpl) -- (env);
+\draw[dep] (orm) -- (db);
+\node[font=\scriptsize\itshape, anchor=west, align=left] at ([xshift=3mm]orm.east) {used by all components\\ to read and write state};
+\end{tikzpicture}
+\end{document}

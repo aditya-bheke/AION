@@ -1,0 +1,29 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize,
+  cls/.style={draw, line width=0.7pt, rectangle split, rectangle split parts=3, rectangle split part fill={gray!22,white,white}, text width=4.1cm, rectangle split part align={center,left,left}, inner sep=3pt},
+  realize/.style={-{Triangle[open, length=2.6mm, width=2.4mm]}, dashed, line width=0.6pt},
+  assoc/.style={line width=0.6pt}, dep/.style={-{Stealth[length=2mm]}, dashed, line width=0.5pt},
+  m/.style={font=\scriptsize, inner sep=1.5pt}]
+\node[cls] (col) at (-6.0,4.2) {\textbf{CollectorThread}\nodepart{second}interval: float\nodepart{third}+ run()\\+ stop()};
+\node[cls] (wrk) at (0,4.2) {\textbf{Worker}\nodepart{second}busy\_keys: list[str]\nodepart{third}+ submit(key, fn): bool\\+ shutdown()};
+\node[cls] (inc) at (6.0,4.2) {\textbf{Incident}\nodepart{second}id: int\\ status: Status\\ signature: str\\ event\_count: int\nodepart{third}};
+\node[cls] (git) at (-6.0,-0.6) {\textbf{GitRepo}\nodepart{second}path: str\nodepart{third}+ commits(range)\\+ changed\_hunks(sha)\\+ add\_worktree(path, branch)\\+ commit\_all(cwd, msg)\\+ merge\_ff\_only(branch)};
+\node[cls] (val) at (0,-0.6) {\textbf{ValidationRunner}\nodepart{second}target: ValidationTarget\\ steps: list[Step]\nodepart{third}+ run(): (bool, steps)};
+\node[cls] (pat) at (6.0,-0.6) {\textbf{PatchProposal}\nodepart{second}strategy: str\\ diff: str\\ commit\_sha: str\\ status: str\nodepart{third}};
+\node[cls] (prov) at (0,-5.0) {\guillemotleft interface\guillemotright\\ \textbf{LLMProvider}\nodepart{second}name: str\nodepart{third}+ complete\_json(system, user,\\ \hspace*{1.2em}schema, max\_tokens)};
+\node[cls] (ant) at (-3.2,-9.0) {\textbf{AnthropicProvider}\nodepart{second}model: str\nodepart{third}+ complete\_json(...)};
+\node[cls] (oai) at (3.2,-9.0) {\textbf{OpenAICompatProvider}\nodepart{second}base\_url: str\\ model: str\nodepart{third}+ complete\_json(...)};
+\node[cls] (rca) at (6.0,-5.0) {\textbf{RCAReport}\nodepart{second}probable\_root\_cause: str\\ suspected\_commit: str\\ confidence: float\nodepart{third}};
+\draw[realize] (ant.north) -- ([xshift=-6mm]prov.south);
+\draw[realize] (oai.north) -- ([xshift=6mm]prov.south);
+\draw[dep] (col) -- node[m, above] {enqueues} (wrk);
+\draw[dep] (wrk) -- node[m, above] {processes} (inc);
+\draw[assoc] (inc) -- node[m, right, pos=0.15] {1} node[m, right, pos=0.85] {1..*} (pat);
+\draw[assoc] (inc.east) -- ++(0.9,0) |- (rca.east); \node[m, above] at ([xshift=3mm]inc.east) {1}; \node[m, above] at ([xshift=4.5mm]rca.east) {0..*};
+\draw[dep] (val) -- node[m, above] {validates} (pat);
+\draw[dep] (val) -- node[m, above] {uses} (git);
+\draw[dep] (wrk) -- node[m, right] {runs} (val);
+\draw[dep] (rca) -- node[m, above] {uses} (prov);
+\end{tikzpicture}
+\end{document}

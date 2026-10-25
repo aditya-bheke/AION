@@ -1,0 +1,31 @@
+\input{pre}
+\begin{document}
+\begin{tikzpicture}[font=\footnotesize]
+\newcommand{\nodeD}[5]{% name, center, width, height, label
+  \node[draw, line width=0.7pt, minimum width=#3, minimum height=#4, fill=white] (#1) at #2 {};
+  \draw[line width=0.7pt, fill=gray!15] (#1.north west) -- ++(0.3,0.3) -- ($(#1.north east)+(0.3,0.3)$) -- (#1.north east) -- cycle;
+  \draw[line width=0.7pt, fill=gray!30] (#1.north east) -- ++(0.3,0.3) -- ($(#1.south east)+(0.3,0.3)$) -- (#1.south east) -- cycle;
+  \node[anchor=north west, align=left, font=\footnotesize] at ([xshift=2pt,yshift=-2pt]#1.north west) {#5};}
+\tikzset{art/.style={draw, line width=0.5pt, minimum width=3.6cm, minimum height=0.62cm, align=center, font=\scriptsize, fill=white},
+  link/.style={line width=0.6pt}, lab/.style={font=\scriptsize, fill=white, inner sep=1pt, align=center}}
+% AION host
+\nodeD{host}{(0,0)}{7.6cm}{7.4cm}{\guillemotleft device\guillemotright\ \textbf{AION host (laptop)}\\ Windows / Linux, Core i5 / Ryzen 5, 16 GB RAM}
+\node[art] (be) at (-1.7,1.55) {\guillemotleft artifact\guillemotright\ aion backend\\ FastAPI + Uvicorn :8000};
+\node[art] (wk) at (-1.7,0.55) {\guillemotleft artifact\guillemotright\ worker + collector};
+\node[art] (db) at (-1.7,-0.45) {\guillemotleft artifact\guillemotright\ aion.db (SQLite)};
+\node[art] (gr) at (-1.7,-1.45) {\guillemotleft artifact\guillemotright\ service Git repo\\ + patch worktrees};
+\node[art, minimum width=2.9cm] (ui) at (2.15,1.55) {\guillemotleft artifact\guillemotright\\ dashboard (built)};
+\node[art, minimum width=2.9cm] (stg) at (2.15,-0.45) {\guillemotleft execution env.\guillemotright\\ staging process :8201};
+\node[art, minimum width=2.9cm] (prd) at (2.15,-1.45) {\guillemotleft execution env.\guillemotright\\ production service};
+\node[font=\scriptsize\itshape] at (0,-2.85) {Python 3.10+ runtime, Git CLI};
+% engineer device
+\nodeD{ws}{(-7.6,1.6)}{4.4cm}{2.2cm}{\guillemotleft device\guillemotright\ \textbf{Engineer}\\ \textbf{workstation}\\ web browser}
+% GPU node
+\nodeD{gpu}{(7.9,1.6)}{4.6cm}{2.3cm}{\guillemotleft device\guillemotright\ \textbf{GPU node (optional)}\\ RTX 3050, 6 GB VRAM\\ Ollama :11434\\ qwen2.5-coder:7b}
+% cloud
+\nodeD{cl}{(7.9,-2.2)}{4.6cm}{1.9cm}{\guillemotleft cloud service\guillemotright\\ \textbf{Anthropic Claude API}\\ structured outputs}
+\draw[link] (ws.east |- 0,1.55) -- node[lab, above]{HTTP\\ 127.0.0.1:8000} (host.west |- 0,1.55);
+\draw[link] (host.east |- 0,1.6) -- node[lab, above]{HTTP (OpenAI-\\compatible API)} (gpu.west |- 0,1.6);
+\draw[link] (host.east |- 0,-2.2) -- node[lab, above]{HTTPS} (cl.west |- 0,-2.2);
+\end{tikzpicture}
+\end{document}
